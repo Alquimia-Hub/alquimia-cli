@@ -18,7 +18,7 @@ Después del install vas a ver un tip con los comandos. Resumen (fuente: `src/co
 Comandos
   info     Qué es Alquimia, la descripción de la comunidad y links a web, GitHub, X, Discord y WhatsApp
   join     Menú para sumarte; abrí Discord (recomendado), WhatsApp, X, GitHub o la web
-  events   Community calls de lunes y miércoles 17:00 ARG, con cuál es la próxima
+  events   Calls de lun/mié 17:00 ARG; en TTY elegí con ↑↓ y Enter abre el evento en Discord
   open     Abrí una red puntual en el navegador (`open discord`, `open x`, etc.)
   help     Ayuda completa con opciones, alias y ejemplos
   version  Versión instalada de la CLI
@@ -85,10 +85,14 @@ alquimia join wa
 
 ### events
 
-Community calls recurrentes (lunes y miércoles 17:00 ARG / UTC-3, en Discord). Destaca la próxima call:
+Community calls recurrentes (lunes y miércoles 17:00 ARG / UTC-3, en Discord). Destaca la próxima call.
+
+En una terminal interactiva (TTY) podés moverte con ↑↓ y con Enter se abre el **evento de Discord** de esa call. Esc / `q` / Ctrl+C cancela. Sin TTY, con `--json`, `--list` o `--no-interactive`, solo lista (sin raw mode). `--open` abre la próxima call sin menú:
 
 ```bash
 alquimia events
+alquimia events --open
+alquimia events --list
 alquimia events --json
 alquimia events --no-banner
 ```
@@ -109,13 +113,13 @@ cd alquimia-cli
 node bin/alquimia.js info
 node bin/alquimia.js open discord
 node bin/alquimia.js join --json
-node bin/alquimia.js events
+node bin/alquimia.js events --list
 node bin/alquimia.js events --json
 node bin/alquimia.js info --json
 node scripts/postinstall.js
 ```
 
-Links, menú de `join` y agenda de `events` viven centralizados en `src/community.js`. La lista de comandos + blurbs (help, `info`, postinstall y este README) está en `src/commands.js`. El banner ASCII está en `src/banner.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
+Links, menú de `join` y agenda de `events` viven centralizados en `src/community.js` (incl. URLs de scheduled events de Discord). El selector con flechas de `events` está en `src/select.js` (reutilizable). La lista de comandos + blurbs (help, `info`, postinstall y este README) está en `src/commands.js`. El banner ASCII está en `src/banner.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
 
 ESM (`"type": "module"`), sin dependencias de runtime, licencia MIT.
 

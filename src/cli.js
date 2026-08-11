@@ -9,9 +9,11 @@ import {
   linkAliases,
   linkLabels,
   linkOrder,
+  resolveEventUrl,
   resolveLinkKey,
 } from "./community.js";
 import { openUrl } from "./open-url.js";
+import { select } from "./select.js";
 import { closest } from "./suggest.js";
 import { style } from "./style.js";
 import { getVersion } from "./version.js";
@@ -46,6 +48,7 @@ function helpText({ noBanner = false } = {}) {
     pad("-v, --version", "Versión"),
     pad("--json", "Salida JSON (info, join, events)"),
     pad("--no-banner", "Ocultá el banner ASCII"),
+    pad("--no-interactive", "Sin menú interactivo (events / join)"),
     "",
     style.bold("Redes para open / join"),
     `  ${linkOrder.map((k) => style.cyan(k)).join(" · ")}`,
@@ -59,6 +62,8 @@ function helpText({ noBanner = false } = {}) {
     "  alquimia join",
     "  alquimia join discord",
     "  alquimia events",
+    "  alquimia events --open",
+    "  alquimia events --list",
     "  alquimia events --json",
     "",
   ].join("\n");
@@ -217,7 +222,10 @@ async function promptJoinChoice() {
   }
 }
 
-async function runJoin(args, { json = false, noBanner = false } = {}) {
+async function runJoin(
+  args,
+  { json = false, noBanner = false, noInteractive = false } = {}
+) {
   const name = args.find((a) => !a.startsWith("-"));
 
   if (name) {
@@ -235,7 +243,7 @@ async function runJoin(args, { json = false, noBanner = false } = {}) {
   }
 
   // List / menu mode
-  if (json || !input.isTTY) {
+  if (json || noInteractive || !input.isTTY) {
     printJoinList({ json, noBanner });
     return;
   }
@@ -252,30 +260,7 @@ function formatEventWhen(event) {
   return `${day} ${event.time} ARG (UTC-3)`;
 }
 
-function printEvents({ json = false, noBanner = false } = {}) {
-  const next = getNextCommunityCall();
-
-  if (json) {
-    const payload = {
-      timezone: "America/Argentina/Buenos_Aires",
-      place: "Discord",
-      discord: community.links.discord,
-      note: community.scheduleNote,
-      next: next
-        ? {
-            id: next.event.id,
-            name: next.event.name,
-            weekday: next.event.weekday,
-            time: next.event.time,
-            at: next.at.toISOString(),
-          }
-        : null,
-      events: community.events,
-    };
-    console.log(JSON.stringify(payload, null, 2));
-    return;
-  }
-
+function eventListBody(next = getNextCommunityCall()) {
   const body = [
     style.bold("Community calls"),
     style.dim("Recurrentes · voz en Discord · horario ARG (UTC-3)"),
@@ -298,14 +283,164 @@ function printEvents({ json = false, noBanner = false } = {}) {
   }
 
   body.push(style.bold("Discord"));
-  body.push(`  ${style.dim(community.links.discord)}`);
+  body.push(
+    `  ${style.dim(community.discord?.invite ?? community.links.discord)}`
+  );
   body.push("");
   if (community.scheduleNote) {
     body.push(style.dim(community.scheduleNote));
     body.push("");
   }
 
-  console.log(withBanner(body, { noBanner }).join("\n"));
+  return body;
+}
+
+function printEvents({ json = false, noBanner = false } = {}) {
+  const next = getNextCommunityCall();
+
+  if (json) {
+    const payload = {
+      timezone: "America/Argentina/Buenos_Aires",
+      place: "Discord",
+      discord: {
+        invite: community.discord?.invite ?? community.links.discord,
+        guildId: community.discord?.guildId ?? null,
+        eventsChannelUrl: community.discord?.eventsChannelUrl ?? null,
+      },
+      note: community.scheduleNote,
+      next: next
+        ? {
+            id: next.event.id,
+            name: next.event.name,
+            weekday: next.event.weekday,
+            time: next.event.time,
+            at: next.at.toISOString(),
+            url: resolveEventUrl(next.event),
+          }
+        : null,
+      events: community.events,
+    };
+    console.log(JSON.stringify(payload, null, 2));
+    return;
+  }
+
+  console.log(withBanner(eventListBody(next), { noBanner }).join("\n"));
+}
+
+async function openEventUrl(event, { quiet = false } = {}) {
+  const url = resolveEventUrl(event);
+  const label = event?.name
+    ? `${event.name} (${formatEventWhen(event)})`
+    : "Discord";
+
+  try {
+    await openUrl(url);
+    if (!quiet) {
+      console.log(
+        `${style.green("✓")} Abriendo ${style.bold(label)}…\n  ${style.dim(url)}`
+      );
+    }
+  } catch (err) {
+    console.error(style.red(`No pude abrir el navegador: ${err.message}`));
+    console.error(style.dim(`URL: ${url}`));
+    process.exitCode = 1;
+  }
+}
+
+async function runEventsInteractive({ noBanner = false } = {}) {
+  const next = getNextCommunityCall();
+  const events = community.events ?? [];
+  if (events.length === 0) {
+    printEvents({ noBanner });
+    return;
+  }
+
+  const initialIndex = next
+    ? Math.max(
+        0,
+        events.findIndex((e) => e.id === next.event.id)
+      )
+    : 0;
+
+  const headed = withBanner(
+    [
+      style.bold("Community calls"),
+      style.dim("Recurrentes · voz en Discord · horario ARG (UTC-3)"),
+      "",
+    ],
+    { noBanner }
+  );
+  console.log(headed.join("\n"));
+
+  const labels = events.map((event) => {
+    const when = formatEventWhen(event);
+    const isNext = next && next.event.id === event.id;
+    return isNext
+      ? `${event.name} · ${when}  (próxima)`
+      : `${event.name} · ${when}`;
+  });
+
+  const picked = await select(labels, {
+    initialIndex,
+    hint: "↑↓ para elegir · Enter para abrir Discord · q para salir",
+    renderItem: (item, index, selected) => {
+      const event = events[index];
+      const isNext = next && next.event.id === event.id;
+      const when = formatEventWhen(event);
+      const nextTag = isNext ? `  ${style.yellow("(próxima)")}` : "";
+      const name = isNext
+        ? style.bold(style.green(event.name))
+        : style.bold(event.name);
+      const whenColored = style.cyan(when);
+
+      if (selected) {
+        return `${style.cyan("❯")} ${name}${nextTag}\n    ${whenColored}`;
+      }
+      return `  ${name}${nextTag}\n    ${style.dim(when)}`;
+    },
+  });
+
+  if (picked == null) {
+    console.log(style.dim("Cancelado."));
+    return;
+  }
+
+  await openEventUrl(events[picked]);
+}
+
+async function runEvents({
+  json = false,
+  noBanner = false,
+  noInteractive = false,
+  listOnly = false,
+  openOnly = false,
+} = {}) {
+  if (json || listOnly || noInteractive) {
+    printEvents({ json, noBanner });
+    return;
+  }
+
+  const next = getNextCommunityCall();
+
+  if (openOnly) {
+    const headed = withBanner([], { noBanner });
+    if (headed.length) console.log(headed.join("\n"));
+    const target = next?.event ?? community.events[0];
+    if (!target) {
+      console.error(style.red("No hay events configurados."));
+      process.exitCode = 1;
+      return;
+    }
+    await openEventUrl(target);
+    return;
+  }
+
+  if (!input.isTTY || !output.isTTY) {
+    printEvents({ json: false, noBanner });
+    return;
+  }
+
+  await runEventsInteractive({ noBanner });
 }
 
 function parseArgs(argv) {
@@ -327,6 +462,7 @@ export async function run(argv) {
   const { flags, positionals } = parseArgs(argv);
   const noBanner = flags.has("--no-banner");
   const json = flags.has("--json");
+  const noInteractive = flags.has("--no-interactive");
 
   if (flags.has("-h") || flags.has("--help")) {
     console.log(helpText({ noBanner }));
@@ -366,12 +502,19 @@ export async function run(argv) {
   }
 
   if (cmd === "join") {
-    await runJoin(rest, { json, noBanner });
+    await runJoin(rest, { json, noBanner, noInteractive });
     return;
   }
 
   if (cmd === "events") {
-    printEvents({ json, noBanner });
+    await runEvents({
+      json,
+      noBanner,
+      noInteractive:
+        noInteractive || flags.has("--list") || rest.includes("--list"),
+      listOnly: flags.has("--list") || rest.includes("--list"),
+      openOnly: flags.has("--open") || rest.includes("--open"),
+    });
     return;
   }
 
