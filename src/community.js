@@ -29,9 +29,9 @@ export const community = {
       timezone: "America/Argentina/Buenos_Aires",
       place: "Discord",
       // Discord scheduled-event deep link (opens that event in the client).
-      url: "https://discord.com/events/1470486817500303546/1506675889658921081/1537188927897600000",
+      url: "https://discord.com/events/1470486817500303546/1535005054405185598/1539000867225600000",
       discordEventUrl:
-        "https://discord.com/events/1470486817500303546/1506675889658921081/1537188927897600000",
+        "https://discord.com/events/1470486817500303546/1535005054405185598/1539000867225600000",
     },
     {
       id: "community-call-wednesday",
@@ -40,9 +40,9 @@ export const community = {
       time: "17:00",
       timezone: "America/Argentina/Buenos_Aires",
       place: "Discord",
-      url: "https://discord.com/events/1470486817500303546/1535005054405185598/1539000867225600000",
+      url: "https://discord.com/events/1470486817500303546/1506675889658921081/1537188927897600000",
       discordEventUrl:
-        "https://discord.com/events/1470486817500303546/1535005054405185598/1539000867225600000",
+        "https://discord.com/events/1470486817500303546/1506675889658921081/1537188927897600000",
     },
   ],
   scheduleNote:

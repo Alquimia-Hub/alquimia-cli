@@ -21,7 +21,7 @@ Comandos
   events   Calls de lun/mié 17:00 ARG; en TTY elegí con ↑↓ y Enter abre el evento en Discord
   tools    Catálogo de tools; en TTY: sección → tool → acción (abrir docs o instalar). Esc/q vuelve un nivel
   open     Abrí una red puntual en el navegador (`open discord`, `open x`, etc.)
-  help     Ayuda completa con opciones, alias y ejemplos
+  help     Ayuda completa con opciones y alias
   version  Versión instalada de la CLI
 ```
 
@@ -171,6 +171,7 @@ ESM (`"type": "module"`), sin dependencias de runtime (Vitest solo en dev), lice
 
 ## Changelog
 
+- **0.5.7** — Help: se quitó el bloque `Ejemplos` de la salida de ayuda. Fix: URLs de Discord scheduled-event de lunes y miércoles estaban intercambiadas.
 - **0.5.5** — Fix: redraw portable del picker (`select`) sin DECSC/DECRC; limpia por conteo visual de filas (ancho de glifos + CSI/OSC) para que ↑↓ no apile menús en VS Code / Cursor. Suite Vitest (unit + fake-TTY stacking + CLI smoke).
 - **0.5.4** — Fix: el picker interactivo (`select`) limpia filas visuales (wrap + ANSI) al navegar ↑↓, sin filas fantasma. Se quitó el placeholder `by the way tests` del catálogo de testing (queda Vitest).
 
