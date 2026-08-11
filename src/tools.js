@@ -140,6 +140,18 @@ export const toolSections = [
           note: "macOS/Linux via Homebrew. También: curl -L https://dmtrkovalenko.dev/install-fff-mcp.sh | bash — después registrá el MCP en tu agent.",
         },
       },
+      {
+        id: "mattpocock-skills",
+        name: "Matt Pocock Skills",
+        blurb:
+          "Skill system para engineers: grill → spec → tickets → implement → review (AIHero)",
+        url: "https://github.com/mattpocock/skills",
+        install: {
+          project: "npx skills@latest add mattpocock/skills",
+          global: null,
+          note: "Escribe skills editables en el proyecto. Site: https://www.aihero.dev/skills · Update: npx skills update. Claude Code plugin: claude plugins install mattpocock-skills",
+        },
+      },
     ],
   },
   {
