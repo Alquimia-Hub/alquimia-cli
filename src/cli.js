@@ -1,6 +1,7 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { renderBanner } from "./banner.js";
+import { commandNames, formatCommandsBlock } from "./commands.js";
 import {
   community,
   getNextCommunityCall,
@@ -14,8 +15,6 @@ import { openUrl } from "./open-url.js";
 import { closest } from "./suggest.js";
 import { style } from "./style.js";
 import { getVersion } from "./version.js";
-
-const COMMANDS = ["info", "open", "join", "events", "help", "version"];
 
 function bannerBlock({ noBanner = false } = {}) {
   if (noBanner) return "";
@@ -40,13 +39,7 @@ function helpText({ noBanner = false } = {}) {
     style.bold("Uso"),
     `  alquimia ${style.dim("[comando] [opciones]")}`,
     "",
-    style.bold("Comandos"),
-    pad("info", "Descripción y redes de la comunidad"),
-    pad("open <red>", "Abrí una red en el navegador"),
-    pad("join [red]", "Sumate: menú o abrí una red directo"),
-    pad("events", "Community calls (lunes y miércoles)"),
-    pad("help", "Mostrá esta ayuda"),
-    pad("version", "Mostrá la versión"),
+    ...formatCommandsBlock({ colored: true, useUsage: true }),
     "",
     style.bold("Opciones"),
     pad("-h, --help", "Ayuda"),
@@ -91,7 +84,13 @@ function printInfo({ json = false, noBanner = false } = {}) {
     body.push(`  ${style.green(label)}  ${style.dim(community.links[key])}`);
   }
 
-  body.push("");
+  body.push(
+    "",
+    ...formatCommandsBlock({ colored: true, heading: "Comandos" }),
+    "",
+    style.dim("Tip: alquimia help para más."),
+    ""
+  );
   console.log(withBanner(body, { noBanner }).join("\n"));
 }
 
@@ -376,7 +375,7 @@ export async function run(argv) {
     return;
   }
 
-  const suggestion = closest(cmd, COMMANDS);
+  const suggestion = closest(cmd, commandNames);
   console.error(style.red(`Comando desconocido: ${cmd}`));
   if (suggestion) {
     console.error(style.yellow(`¿Quisiste decir "${suggestion}"?`));

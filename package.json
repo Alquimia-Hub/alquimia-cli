@@ -1,6 +1,6 @@
 {
   "name": "alquimia",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "CLI de la comunidad Alquimia — IA, automatización y productividad",
   "bin": {
     "alquimia": "bin/alquimia.js"
@@ -8,11 +8,13 @@
   "type": "module",
   "files": [
     "bin",
-    "src"
+    "src",
+    "scripts"
   ],
   "scripts": {
     "start": "node bin/alquimia.js",
-    "info": "node bin/alquimia.js info"
+    "info": "node bin/alquimia.js info",
+    "postinstall": "node scripts/postinstall.js"
   },
   "keywords": [
     "alquimia",

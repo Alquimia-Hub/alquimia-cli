@@ -12,6 +12,20 @@ npm install -g github:Nicolopez603/alquimia-cli
 
 Requiere **Node.js 18+**.
 
+Después del install vas a ver un tip con los comandos. Resumen (fuente: `src/commands.js`):
+
+```
+Comandos
+  info      Qué es Alquimia, la descripción de la comunidad y links a web, GitHub, X, Discord y WhatsApp
+  join      Menú para sumarte; abrí Discord (recomendado), WhatsApp, X, GitHub o la web
+  events    Community calls de lunes y miércoles 17:00 ARG, con cuál es la próxima
+  open      Abrí una red puntual en el navegador (`open discord`, `open x`, etc.)
+  help      Ayuda completa con opciones, alias y ejemplos
+  version   Versión instalada de la CLI
+```
+
+Empezá con `alquimia info` o `alquimia help`.
+
 ## Usage
 
 Sin argumentos (o con `-h` / `--help`) muestra la ayuda, con un banner ASCII (wordmark + triángulo) arriba:
@@ -25,13 +39,13 @@ Usá `--no-banner` en `help` / `info` / `join` / `events` si preferís omitirlo.
 
 ### info
 
-Descripción de la comunidad y links a las redes (incluye el banner en salida humana):
+Descripción de la comunidad, links a las redes y un cheat-sheet de comandos (incluye el banner en salida humana):
 
 ```bash
 alquimia info
 ```
 
-Salida machine-readable (sin banner):
+Salida machine-readable (sin banner ni cheat-sheet):
 
 ```bash
 alquimia info --json
@@ -98,9 +112,10 @@ node bin/alquimia.js join --json
 node bin/alquimia.js events
 node bin/alquimia.js events --json
 node bin/alquimia.js info --json
+node scripts/postinstall.js
 ```
 
-Links, menú de `join` y agenda de `events` viven centralizados en `src/community.js`. El banner ASCII está en `src/banner.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
+Links, menú de `join` y agenda de `events` viven centralizados en `src/community.js`. La lista de comandos + blurbs (help, `info`, postinstall y este README) está en `src/commands.js`. El banner ASCII está en `src/banner.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
 
 ESM (`"type": "module"`), sin dependencias de runtime, licencia MIT.
 
