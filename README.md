@@ -160,6 +160,10 @@ Links, menú de `join` y agenda de `events` viven centralizados en `src/communit
 
 ESM (`"type": "module"`), sin dependencias de runtime, licencia MIT.
 
+## Changelog
+
+- **0.5.4** — Fix: el picker interactivo (`select`) limpia filas visuales (wrap + ANSI) al navegar ↑↓, sin filas fantasma. Se quitó el placeholder `by the way tests` del catálogo de testing (queda Vitest).
+
 ## License
 
 MIT © Alquimia Hub

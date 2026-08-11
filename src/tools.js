@@ -226,13 +226,6 @@ export const toolSections = [
           note: "En un proyecto, preferí la install local (devDependency).",
         },
       },
-      {
-        id: "bythewaytests",
-        name: "by the way tests",
-        blurb: "Recomendación de la comunidad — link pronto",
-        url: null,
-        comingSoon: true,
-      },
     ],
   },
 ];

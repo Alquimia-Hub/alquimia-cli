@@ -1,9 +1,34 @@
 import { stdin as input, stdout as output } from "node:process";
 import { style } from "./style.js";
 
-const CLEAR_LINE = "\x1b[2K";
 const CURSOR_HIDE = "\x1b[?25l";
 const CURSOR_SHOW = "\x1b[?25h";
+const CURSOR_SAVE = "\x1b7";
+const CURSOR_RESTORE = "\x1b8";
+const ERASE_DOWN = "\x1b[0J";
+const CLEAR_LINE = "\x1b[2K";
+
+/** Strip SGR / CSI color sequences (`ESC[…m`) before measuring width. */
+const ANSI_SGR_RE = /\x1b\[[0-9;]*m/g;
+
+/**
+ * Visual row count for terminal text: strip ANSI, then wrap each logical
+ * line by `columns` (min 1). Empty logical lines still occupy one row.
+ *
+ * @param {string} text
+ * @param {number} columns
+ * @returns {number}
+ */
+export function visualLineCount(text, columns) {
+  const cols = Math.max(1, columns || 80);
+  let count = 0;
+  for (const line of String(text).split("\n")) {
+    const plain = line.replace(ANSI_SGR_RE, "");
+    const len = plain.length;
+    count += Math.max(1, Math.ceil(len / cols) || 1);
+  }
+  return count;
+}
 
 /**
  * Tiny raw-mode arrow selector (zero deps).
@@ -45,12 +70,16 @@ export function select(items, opts = {}) {
     items.length - 1
   );
   let lineCount = 0;
+  let drawn = false;
+
+  const columns = () => Math.max(1, stdout.columns || 80);
 
   const write = (s) => {
     stdout.write(s);
   };
 
-  const clearDrawn = () => {
+  /** Fallback clear by walking up the previous visual line count. */
+  const clearByLineCount = () => {
     if (lineCount <= 0) return;
     write(`\r${CLEAR_LINE}`);
     for (let i = 1; i < lineCount; i++) {
@@ -58,15 +87,28 @@ export function select(items, opts = {}) {
     }
   };
 
+  const clearDrawn = () => {
+    if (!drawn) return;
+    // Restore to picker start and erase everything below (handles wrap).
+    write(CURSOR_RESTORE);
+    write(ERASE_DOWN);
+  };
+
   const draw = () => {
-    clearDrawn();
+    if (drawn) {
+      clearDrawn();
+    } else {
+      write(CURSOR_SAVE);
+      drawn = true;
+    }
+
     const rows = items.map((item, i) => renderItem(item, i, i === index));
     rows.push("");
     rows.push(style.dim(hint));
     const text = rows.join("\n");
     write(text);
-    // Count real terminal lines (renderItem may emit multi-line rows).
-    lineCount = text.split("\n").length;
+    // Visual rows (ANSI-stripped + wrap), not just logical `\n` count.
+    lineCount = visualLineCount(text, columns());
   };
 
   return new Promise((resolve) => {
@@ -84,7 +126,11 @@ export function select(items, opts = {}) {
       }
       stdin.pause();
       write(CURSOR_SHOW);
-      clearDrawn();
+      if (drawn) {
+        clearDrawn();
+      } else {
+        clearByLineCount();
+      }
       // Leave the cursor on a fresh line after wiping the picker.
       write("\r\n");
       resolve(value);
