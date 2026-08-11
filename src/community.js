@@ -11,3 +11,36 @@ export const community = {
     whatsapp: "https://chat.whatsapp.com/BhC5waw0nm1FIRSb9Kvs7a",
   },
 };
+
+/** Display labels for each link key (info output). */
+export const linkLabels = {
+  web: "Web",
+  github: "GitHub",
+  twitter: "Twitter/X",
+  discord: "Discord",
+  whatsapp: "WhatsApp",
+};
+
+/** Order used when printing links. */
+export const linkOrder = ["web", "github", "twitter", "discord", "whatsapp"];
+
+/**
+ * Aliases for `alquimia open <red>`.
+ * Canonical keys match `community.links`.
+ */
+export const linkAliases = {
+  web: "web",
+  site: "web",
+  github: "github",
+  gh: "github",
+  twitter: "twitter",
+  x: "twitter",
+  discord: "discord",
+  whatsapp: "whatsapp",
+  wa: "whatsapp",
+};
+
+export function resolveLinkKey(name) {
+  if (!name) return null;
+  return linkAliases[name.toLowerCase()] ?? null;
+}
