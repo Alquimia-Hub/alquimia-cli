@@ -21,7 +21,7 @@ alquimia
 alquimia --help
 ```
 
-Usá `--no-banner` en `help` / `info` si preferís omitirlo.
+Usá `--no-banner` en `help` / `info` / `join` / `events` si preferís omitirlo.
 
 ### info
 
@@ -58,6 +58,27 @@ Alias útiles:
 | `gh`   | github   |
 | `wa`   | whatsapp |
 
+### join
+
+Menú para sumarte a la comunidad. En una terminal interactiva te pide un número (Enter = Discord). Sin TTY o con `--json`, solo lista las opciones:
+
+```bash
+alquimia join
+alquimia join --json
+alquimia join discord
+alquimia join wa
+```
+
+### events
+
+Community calls recurrentes (lunes y miércoles 17:00 ARG / UTC-3, en Discord). Destaca la próxima call:
+
+```bash
+alquimia events
+alquimia events --json
+alquimia events --no-banner
+```
+
 ### version
 
 ```bash
@@ -73,10 +94,13 @@ git clone https://github.com/Nicolopez603/alquimia-cli.git
 cd alquimia-cli
 node bin/alquimia.js info
 node bin/alquimia.js open discord
+node bin/alquimia.js join --json
+node bin/alquimia.js events
+node bin/alquimia.js events --json
 node bin/alquimia.js info --json
 ```
 
-Los links viven centralizados en `src/community.js`. El banner ASCII está en `src/banner.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
+Links, menú de `join` y agenda de `events` viven centralizados en `src/community.js`. El banner ASCII está en `src/banner.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
 
 ESM (`"type": "module"`), sin dependencias de runtime, licencia MIT.
 
