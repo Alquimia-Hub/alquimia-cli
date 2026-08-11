@@ -21,7 +21,7 @@ export const commands = [
     name: "events",
     usage: "events",
     blurb:
-      "Community calls de lunes y miércoles 17:00 ARG, con cuál es la próxima",
+      "Calls de lun/mié 17:00 ARG; en TTY elegí con ↑↓ y Enter abre el evento en Discord",
   },
   {
     name: "open",

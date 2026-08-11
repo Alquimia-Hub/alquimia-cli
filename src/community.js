@@ -1,8 +1,15 @@
+const discord = {
+  invite: "https://discord.gg/wkhHrWZC3Q",
+  guildId: "1470486817500303546",
+  // Prefer a deep link to the eventos text channel when known:
+  eventsChannelUrl: "https://discord.com/channels/1470486817500303546", // placeholder until channel id known
+};
+
 const links = {
   web: "https://alquimia.community/",
   github: "https://github.com/Alquimia-Hub",
   twitter: "https://x.com/alquimia_hub",
-  discord: "https://discord.gg/wkhHrWZC3Q",
+  discord: discord.invite,
   whatsapp: "https://chat.whatsapp.com/BhC5waw0nm1FIRSb9Kvs7a",
 };
 
@@ -12,6 +19,7 @@ export const community = {
   description:
     "Una comunidad abierta y gratuita donde compartimos conocimiento sobre inteligencia artificial, automatización y productividad.",
   links,
+  discord,
   events: [
     {
       id: "community-call-monday",
@@ -20,7 +28,10 @@ export const community = {
       time: "17:00",
       timezone: "America/Argentina/Buenos_Aires",
       place: "Discord",
-      url: links.discord,
+      // Discord scheduled-event deep link (opens that event in the client).
+      url: "https://discord.com/events/1470486817500303546/1506675889658921081/1537188927897600000",
+      discordEventUrl:
+        "https://discord.com/events/1470486817500303546/1506675889658921081/1537188927897600000",
     },
     {
       id: "community-call-wednesday",
@@ -29,12 +40,28 @@ export const community = {
       time: "17:00",
       timezone: "America/Argentina/Buenos_Aires",
       place: "Discord",
-      url: links.discord,
+      url: "https://discord.com/events/1470486817500303546/1535005054405185598/1539000867225600000",
+      discordEventUrl:
+        "https://discord.com/events/1470486817500303546/1535005054405185598/1539000867225600000",
     },
   ],
   scheduleNote:
     "El horario puede moverse: chequeá #anuncios en Discord por si hay cambios.",
 };
+
+/**
+ * URL to open for an event: per-event scheduled URL → events channel → invite.
+ * @param {object} [event]
+ * @returns {string}
+ */
+export function resolveEventUrl(event) {
+  if (event?.discordEventUrl) return event.discordEventUrl;
+  if (event?.url) return event.url;
+  if (community.discord?.eventsChannelUrl) {
+    return community.discord.eventsChannelUrl;
+  }
+  return community.discord?.invite ?? community.links.discord;
+}
 
 /** Display labels for each link key (info output). */
 export const linkLabels = {
