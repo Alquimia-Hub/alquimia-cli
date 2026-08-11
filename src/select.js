@@ -3,17 +3,97 @@ import { style } from "./style.js";
 
 const CURSOR_HIDE = "\x1b[?25l";
 const CURSOR_SHOW = "\x1b[?25h";
-const CURSOR_SAVE = "\x1b7";
-const CURSOR_RESTORE = "\x1b8";
 const ERASE_DOWN = "\x1b[0J";
-const CLEAR_LINE = "\x1b[2K";
-
-/** Strip SGR / CSI color sequences (`ESC[…m`) before measuring width. */
-const ANSI_SGR_RE = /\x1b\[[0-9;]*m/g;
 
 /**
- * Visual row count for terminal text: strip ANSI, then wrap each logical
- * line by `columns` (min 1). Empty logical lines still occupy one row.
+ * Strip CSI (`ESC[…`) and OSC (`ESC]…BEL` / `ESC]…ESC\`) sequences before
+ * measuring width. Broader than SGR-only so wrap math ignores all styling.
+ */
+const ANSI_CSI_OSC_RE =
+  /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
+
+/**
+ * Minimal terminal column width for one Unicode code point (zero deps).
+ * Combining marks → 0; East-Asian wide/fullwidth → 2; picker glyphs that
+ * VS Code / Cursor often render double-wide (❯ etc.) → 2; else → 1.
+ *
+ * @param {number} cp
+ * @returns {number}
+ */
+export function charWidth(cp) {
+  if (cp === 0) return 0;
+  if (cp < 32 || (cp >= 0x7f && cp < 0xa0)) return 0;
+
+  // Combining marks (common blocks).
+  if (
+    (cp >= 0x0300 && cp <= 0x036f) ||
+    (cp >= 0x1ab0 && cp <= 0x1aff) ||
+    (cp >= 0x1dc0 && cp <= 0x1dff) ||
+    (cp >= 0x20d0 && cp <= 0x20ff) ||
+    (cp >= 0xfe20 && cp <= 0xfe2f)
+  ) {
+    return 0;
+  }
+
+  // East Asian Wide / Fullwidth (classic wcwidth ranges).
+  if (
+    cp >= 0x1100 &&
+    (cp <= 0x115f ||
+      cp === 0x2329 ||
+      cp === 0x232a ||
+      (cp >= 0x2e80 && cp <= 0xa4cf && cp !== 0x303f) ||
+      (cp >= 0xac00 && cp <= 0xd7a3) ||
+      (cp >= 0xf900 && cp <= 0xfaff) ||
+      (cp >= 0xfe10 && cp <= 0xfe19) ||
+      (cp >= 0xfe30 && cp <= 0xfe6f) ||
+      (cp >= 0xff00 && cp <= 0xff60) ||
+      (cp >= 0xffe0 && cp <= 0xffe6) ||
+      (cp >= 0x20000 && cp <= 0x3fffd))
+  ) {
+    return 2;
+  }
+
+  // Ambiguous ornaments / pointers often drawn 2 cols in integrated terminals.
+  // ❯ U+276F is the select cursor glyph.
+  if (
+    cp === 0x276f || // ❯
+    cp === 0x276e || // ❮
+    cp === 0x276d || // ❭
+    cp === 0x25b6 || // ▶
+    cp === 0x25b8 // ▸
+  ) {
+    return 2;
+  }
+
+  // Box drawing / block elements — Ambiguous EAW, often 2 in VS Code / Cursor.
+  if (
+    (cp >= 0x2500 && cp <= 0x257f) ||
+    (cp >= 0x2580 && cp <= 0x259f)
+  ) {
+    return 2;
+  }
+
+  return 1;
+}
+
+/**
+ * Display width of a string (ANSI already stripped).
+ *
+ * @param {string} plain
+ * @returns {number}
+ */
+export function stringWidth(plain) {
+  let w = 0;
+  for (const ch of plain) {
+    w += charWidth(ch.codePointAt(0));
+  }
+  return w;
+}
+
+/**
+ * Visual row count for terminal text: strip CSI/OSC, then wrap each logical
+ * line by display width vs `columns` (min 1). Empty logical lines still
+ * occupy one row.
  *
  * @param {string} text
  * @param {number} columns
@@ -23,8 +103,8 @@ export function visualLineCount(text, columns) {
   const cols = Math.max(1, columns || 80);
   let count = 0;
   for (const line of String(text).split("\n")) {
-    const plain = line.replace(ANSI_SGR_RE, "");
-    const len = plain.length;
+    const plain = line.replace(ANSI_CSI_OSC_RE, "");
+    const len = stringWidth(plain);
     count += Math.max(1, Math.ceil(len / cols) || 1);
   }
   return count;
@@ -78,27 +158,22 @@ export function select(items, opts = {}) {
     stdout.write(s);
   };
 
-  /** Fallback clear by walking up the previous visual line count. */
-  const clearByLineCount = () => {
-    if (lineCount <= 0) return;
-    write(`\r${CLEAR_LINE}`);
-    for (let i = 1; i < lineCount; i++) {
-      write(`\x1b[1A${CLEAR_LINE}`);
-    }
-  };
-
+  /**
+   * Clear the previous frame. Convention: each draw ends with a trailing `\n`,
+   * so the cursor sits on a fresh line below the picker. Move up exactly
+   * `lineCount` rows, return to column 0, erase down. No DECSC/DECRC —
+   * those are unreliable in VS Code / Cursor integrated terminals after
+   * multi-line writes.
+   */
   const clearDrawn = () => {
-    if (!drawn) return;
-    // Restore to picker start and erase everything below (handles wrap).
-    write(CURSOR_RESTORE);
-    write(ERASE_DOWN);
+    if (!drawn || lineCount <= 0) return;
+    write(`\x1b[${lineCount}A\r${ERASE_DOWN}`);
   };
 
   const draw = () => {
     if (drawn) {
       clearDrawn();
     } else {
-      write(CURSOR_SAVE);
       drawn = true;
     }
 
@@ -106,8 +181,9 @@ export function select(items, opts = {}) {
     rows.push("");
     rows.push(style.dim(hint));
     const text = rows.join("\n");
-    write(text);
-    // Visual rows (ANSI-stripped + wrap), not just logical `\n` count.
+    // Trailing \n parks the cursor on a blank line below the frame so the
+    // next clear can move up exactly `lineCount` rows.
+    write(`${text}\n`);
     lineCount = visualLineCount(text, columns());
   };
 
@@ -119,6 +195,11 @@ export function select(items, opts = {}) {
       if (settled) return;
       settled = true;
       stdin.off("data", onData);
+      if (typeof stdout.off === "function") {
+        stdout.off("resize", onResize);
+      } else if (typeof stdout.removeListener === "function") {
+        stdout.removeListener("resize", onResize);
+      }
       try {
         stdin.setRawMode(wasRaw);
       } catch {
@@ -126,14 +207,15 @@ export function select(items, opts = {}) {
       }
       stdin.pause();
       write(CURSOR_SHOW);
-      if (drawn) {
-        clearDrawn();
-      } else {
-        clearByLineCount();
-      }
+      clearDrawn();
       // Leave the cursor on a fresh line after wiping the picker.
       write("\r\n");
       resolve(value);
+    };
+
+    const onResize = () => {
+      if (settled || !drawn) return;
+      draw();
     };
 
     const onData = (buf) => {
@@ -178,6 +260,9 @@ export function select(items, opts = {}) {
 
     stdin.resume();
     write(CURSOR_HIDE);
+    if (typeof stdout.on === "function") {
+      stdout.on("resize", onResize);
+    }
     draw();
     stdin.on("data", onData);
   });

@@ -156,12 +156,22 @@ node bin/alquimia.js info --json
 node scripts/postinstall.js
 ```
 
+### Testing
+
+```bash
+npm test          # vitest run (unit + fake-TTY picker + CLI smoke)
+npm run test:watch
+```
+
+Cubre `visualLineCount` / anchos, regresión de stacking del picker (`select` con stdin/stdout fake) y smoke de `tools --list` / `--json` / `version`.
+
 Links, menú de `join` y agenda de `events` viven centralizados en `src/community.js` (incl. URLs de scheduled events de Discord). El catálogo de `tools` está en `src/tools.js`. El selector con flechas (`events` y `tools`) está en `src/select.js` (reutilizable). La lista de comandos + blurbs (help, `info`, postinstall y este README) está en `src/commands.js`. El banner ASCII está en `src/banner.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
 
-ESM (`"type": "module"`), sin dependencias de runtime, licencia MIT.
+ESM (`"type": "module"`), sin dependencias de runtime (Vitest solo en dev), licencia MIT.
 
 ## Changelog
 
+- **0.5.5** — Fix: redraw portable del picker (`select`) sin DECSC/DECRC; limpia por conteo visual de filas (ancho de glifos + CSI/OSC) para que ↑↓ no apile menús en VS Code / Cursor. Suite Vitest (unit + fake-TTY stacking + CLI smoke).
 - **0.5.4** — Fix: el picker interactivo (`select`) limpia filas visuales (wrap + ANSI) al navegar ↑↓, sin filas fantasma. Se quitó el placeholder `by the way tests` del catálogo de testing (queda Vitest).
 
 ## License
