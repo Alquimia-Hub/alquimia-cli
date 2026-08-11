@@ -16,6 +16,12 @@ import { openUrl } from "./open-url.js";
 import { select } from "./select.js";
 import { closest } from "./suggest.js";
 import { style } from "./style.js";
+import {
+  findToolSection,
+  isToolOpenable,
+  toolSections,
+  toolsCatalogPayload,
+} from "./tools.js";
 import { getVersion } from "./version.js";
 
 function bannerBlock({ noBanner = false } = {}) {
@@ -46,13 +52,16 @@ function helpText({ noBanner = false } = {}) {
     style.bold("Opciones"),
     pad("-h, --help", "Ayuda"),
     pad("-v, --version", "Versión"),
-    pad("--json", "Salida JSON (info, join, events)"),
+    pad("--json", "Salida JSON (info, join, events, tools)"),
     pad("--no-banner", "Ocultá el banner ASCII"),
-    pad("--no-interactive", "Sin menú interactivo (events / join)"),
+    pad("--no-interactive", "Sin menú interactivo (events / join / tools)"),
     "",
     style.bold("Redes para open / join"),
     `  ${linkOrder.map((k) => style.cyan(k)).join(" · ")}`,
     style.dim("  alias: site→web, x→twitter, gh→github, wa→whatsapp"),
+    "",
+    style.bold("Secciones de tools"),
+    `  ${toolSections.map((s) => style.cyan(s.id)).join(" · ")}`,
     "",
     style.bold("Ejemplos"),
     "  alquimia info",
@@ -65,6 +74,10 @@ function helpText({ noBanner = false } = {}) {
     "  alquimia events --open",
     "  alquimia events --list",
     "  alquimia events --json",
+    "  alquimia tools",
+    "  alquimia tools agents",
+    "  alquimia tools --list",
+    "  alquimia tools --json",
     "",
   ].join("\n");
 }
@@ -443,6 +456,235 @@ async function runEvents({
   await runEventsInteractive({ noBanner });
 }
 
+const TOOLS_HINT = "↑↓ · Enter · q para volver/salir";
+
+function toolsListBody(sectionFilter = null) {
+  const sections = sectionFilter ? [sectionFilter] : toolSections;
+  const body = [
+    style.bold("Catálogo de tools"),
+    style.dim("Recomendaciones de la comunidad · links oficiales"),
+    "",
+  ];
+
+  for (const section of sections) {
+    body.push(style.bold(section.name));
+    body.push(`  ${style.dim(section.blurb)}`);
+    body.push(`  ${style.cyan(`id: ${section.id}`)}`);
+    body.push("");
+
+    for (const tool of section.tools) {
+      const soon = !isToolOpenable(tool);
+      const tag = soon ? `  ${style.yellow("(próximamente)")}` : "";
+      body.push(`  ${style.green("·")} ${style.bold(tool.name)}${tag}`);
+      body.push(`    ${style.dim(tool.blurb)}`);
+      if (tool.url) {
+        body.push(`    ${style.dim(tool.url)}`);
+      }
+      body.push("");
+    }
+  }
+
+  if (!sectionFilter) {
+    body.push(
+      style.dim("Tip: alquimia tools <sección> para saltar a una categoría.")
+    );
+    body.push("");
+  }
+
+  return body;
+}
+
+function printTools({ json = false, noBanner = false, section = null } = {}) {
+  if (json) {
+    const payload = toolsCatalogPayload();
+    if (section) {
+      const match = payload.sections.find((s) => s.id === section.id);
+      console.log(
+        JSON.stringify(
+          {
+            section: match ?? null,
+            sections: match ? [match] : [],
+          },
+          null,
+          2
+        )
+      );
+      return;
+    }
+    console.log(JSON.stringify(payload, null, 2));
+    return;
+  }
+
+  console.log(
+    withBanner(toolsListBody(section), { noBanner }).join("\n")
+  );
+}
+
+function unknownSectionError(name) {
+  const ids = toolSections.map((s) => s.id);
+  const suggestion = closest(name, ids);
+  console.error(style.red(`No conozco la sección "${name}".`));
+  if (suggestion) {
+    console.error(style.yellow(`¿Quisiste decir "${suggestion}"?`));
+  } else {
+    console.error(style.dim(`Secciones: ${ids.join(", ")}`));
+  }
+  process.exitCode = 1;
+}
+
+async function openToolUrl(tool) {
+  if (!isToolOpenable(tool)) {
+    console.log(
+      style.yellow("Todavía no cargamos el link — pronto.")
+    );
+    if (tool?.blurb) {
+      console.log(style.dim(`  ${tool.name}: ${tool.blurb}`));
+    }
+    return;
+  }
+
+  const url = tool.url;
+  try {
+    await openUrl(url);
+    console.log(
+      `${style.green("✓")} Abriendo ${style.bold(tool.name)}…\n  ${style.dim(url)}`
+    );
+  } catch (err) {
+    console.error(style.red(`No pude abrir el navegador: ${err.message}`));
+    console.error(style.dim(`URL: ${url}`));
+    process.exitCode = 1;
+  }
+}
+
+/**
+ * Tool picker for one section. Returns:
+ * - true  → user opened a tool (or saw coming-soon); stay done
+ * - false → user cancelled / went back
+ */
+async function pickToolInSection(section) {
+  const tools = section.tools ?? [];
+  if (tools.length === 0) {
+    console.log(style.dim("Esta sección todavía no tiene tools."));
+    return true;
+  }
+
+  console.log(
+    [
+      style.bold(section.name),
+      style.dim(section.blurb),
+      "",
+    ].join("\n")
+  );
+
+  const labels = tools.map((t) => t.name);
+  const picked = await select(labels, {
+    hint: TOOLS_HINT,
+    renderItem: (_item, index, selected) => {
+      const tool = tools[index];
+      const soon = !isToolOpenable(tool);
+      const tag = soon ? `  ${style.yellow("(próximamente)")}` : "";
+      const name = style.bold(tool.name);
+      const blurb = style.dim(tool.blurb);
+
+      if (selected) {
+        return `${style.cyan("❯")} ${name}${tag}\n    ${blurb}`;
+      }
+      return `  ${name}${tag}\n    ${blurb}`;
+    },
+  });
+
+  if (picked == null) return false;
+
+  await openToolUrl(tools[picked]);
+  return true;
+}
+
+async function runToolsInteractive({ noBanner = false, section = null } = {}) {
+  const headed = withBanner(
+    [
+      style.bold("Catálogo de tools"),
+      style.dim("Recomendaciones de la comunidad · elegí una sección"),
+      "",
+    ],
+    { noBanner }
+  );
+  console.log(headed.join("\n"));
+
+  // Jump straight into a section's tool picker when requested.
+  if (section) {
+    await pickToolInSection(section);
+    return;
+  }
+
+  // Nested: sections → tools; Esc/q on tools returns to sections.
+  while (true) {
+    const sectionLabels = toolSections.map((s) => s.name);
+    const sectionIdx = await select(sectionLabels, {
+      hint: TOOLS_HINT,
+      renderItem: (_item, index, selected) => {
+        const s = toolSections[index];
+        const name = style.bold(s.name);
+        const blurb = style.dim(s.blurb);
+        if (selected) {
+          return `${style.cyan("❯")} ${name}\n    ${blurb}`;
+        }
+        return `  ${name}\n    ${blurb}`;
+      },
+    });
+
+    if (sectionIdx == null) {
+      console.log(style.dim("Listo."));
+      return;
+    }
+
+    const chosen = toolSections[sectionIdx];
+    const stayed = await pickToolInSection(chosen);
+    if (stayed) return;
+
+    // Back to sections — reprint the heading so the nested loop stays clear.
+    console.log(
+      [
+        style.bold("Catálogo de tools"),
+        style.dim("Recomendaciones de la comunidad · elegí una sección"),
+        "",
+      ].join("\n")
+    );
+  }
+}
+
+async function runTools(
+  args,
+  {
+    json = false,
+    noBanner = false,
+    noInteractive = false,
+    listOnly = false,
+  } = {}
+) {
+  const name = args.find((a) => !a.startsWith("-"));
+  let section = null;
+
+  if (name) {
+    section = findToolSection(name);
+    if (!section) {
+      unknownSectionError(name);
+      return;
+    }
+  }
+
+  if (json || listOnly || noInteractive) {
+    printTools({ json, noBanner, section });
+    return;
+  }
+
+  if (!input.isTTY || !output.isTTY) {
+    printTools({ json: false, noBanner, section });
+    return;
+  }
+
+  await runToolsInteractive({ noBanner, section });
+}
+
 function parseArgs(argv) {
   const flags = new Set();
   const positionals = [];
@@ -514,6 +756,17 @@ export async function run(argv) {
         noInteractive || flags.has("--list") || rest.includes("--list"),
       listOnly: flags.has("--list") || rest.includes("--list"),
       openOnly: flags.has("--open") || rest.includes("--open"),
+    });
+    return;
+  }
+
+  if (cmd === "tools") {
+    await runTools(rest, {
+      json,
+      noBanner,
+      noInteractive:
+        noInteractive || flags.has("--list") || rest.includes("--list"),
+      listOnly: flags.has("--list") || rest.includes("--list"),
     });
     return;
   }
