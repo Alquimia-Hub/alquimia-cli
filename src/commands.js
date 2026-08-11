@@ -38,7 +38,7 @@ export const commands = [
   {
     name: "help",
     usage: "help",
-    blurb: "Ayuda completa con opciones, alias y ejemplos",
+    blurb: "Ayuda completa con opciones y alias",
   },
   {
     name: "version",
