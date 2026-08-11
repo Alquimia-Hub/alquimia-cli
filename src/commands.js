@@ -42,6 +42,12 @@ export const commands = [
       "Abrí una red puntual en el navegador (`open discord`, `open x`, etc.)",
   },
   {
+    name: "update",
+    usage: "update",
+    blurb:
+      "Actualizá la CLI ahora (también se auto-actualiza en segundo plano al arrancar)",
+  },
+  {
     name: "help",
     usage: "help",
     blurb: "Ayuda completa con opciones y alias",
