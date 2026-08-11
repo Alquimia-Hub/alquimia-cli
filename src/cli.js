@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { renderBanner } from "./banner.js";
@@ -19,6 +20,8 @@ import { style } from "./style.js";
 import {
   findToolSection,
   isToolOpenable,
+  normalizeInstall,
+  toolHasInstall,
   toolSections,
   toolsCatalogPayload,
 } from "./tools.js";
@@ -53,6 +56,7 @@ function helpText({ noBanner = false } = {}) {
     pad("-h, --help", "Ayuda"),
     pad("-v, --version", "Versión"),
     pad("--json", "Salida JSON (info, join, events, tools)"),
+    pad("--yes", "Saltear confirmación de install (tools)"),
     pad("--no-banner", "Ocultá el banner ASCII"),
     pad("--no-interactive", "Sin menú interactivo (events / join / tools)"),
     "",
@@ -77,6 +81,7 @@ function helpText({ noBanner = false } = {}) {
     "  alquimia tools",
     "  alquimia tools agents",
     "  alquimia tools harnesses",
+    "  alquimia tools skills",
     "  alquimia tools --list",
     "  alquimia tools --json",
     "",
@@ -457,13 +462,13 @@ async function runEvents({
   await runEventsInteractive({ noBanner });
 }
 
-const TOOLS_HINT = "↑↓ · Enter · q para volver/salir";
+const TOOLS_HINT = "↑↓ · Enter · q para volver";
 
 function toolsListBody(sectionFilter = null) {
   const sections = sectionFilter ? [sectionFilter] : toolSections;
   const body = [
     style.bold("Catálogo de tools"),
-    style.dim("Recomendaciones de la comunidad · links oficiales"),
+    style.dim("Recomendaciones de la comunidad · links + install (si hay)"),
     "",
   ];
 
@@ -474,12 +479,22 @@ function toolsListBody(sectionFilter = null) {
     body.push("");
 
     for (const tool of section.tools) {
-      const soon = !isToolOpenable(tool);
+      const soon = Boolean(tool.comingSoon || !tool.url);
       const tag = soon ? `  ${style.yellow("(próximamente)")}` : "";
       body.push(`  ${style.green("·")} ${style.bold(tool.name)}${tag}`);
       body.push(`    ${style.dim(tool.blurb)}`);
       if (tool.url) {
         body.push(`    ${style.dim(tool.url)}`);
+      }
+      const install = normalizeInstall(tool);
+      if (install?.global) {
+        body.push(`    ${style.dim(`install global: ${install.global}`)}`);
+      }
+      if (install?.project) {
+        body.push(`    ${style.dim(`install proyecto: ${install.project}`)}`);
+      }
+      if (install?.note) {
+        body.push(`    ${style.dim(`nota: ${install.note}`)}`);
       }
       body.push("");
     }
@@ -535,13 +550,11 @@ function unknownSectionError(name) {
 
 async function openToolUrl(tool) {
   if (!isToolOpenable(tool)) {
-    console.log(
-      style.yellow("Todavía no cargamos el link — pronto.")
-    );
+    console.log(style.yellow("Todavía no cargamos el link — pronto."));
     if (tool?.blurb) {
       console.log(style.dim(`  ${tool.name}: ${tool.blurb}`));
     }
-    return;
+    return false;
   }
 
   const url = tool.url;
@@ -550,57 +563,323 @@ async function openToolUrl(tool) {
     console.log(
       `${style.green("✓")} Abriendo ${style.bold(tool.name)}…\n  ${style.dim(url)}`
     );
+    return true;
   } catch (err) {
     console.error(style.red(`No pude abrir el navegador: ${err.message}`));
     console.error(style.dim(`URL: ${url}`));
     process.exitCode = 1;
+    return false;
+  }
+}
+
+/**
+ * Run a static catalog shell command (never remote eval).
+ * @param {string} command
+ * @param {{ cwd?: string }} [opts]
+ * @returns {Promise<{ ok: boolean, code: number }>}
+ */
+function runInstallCommand(command, { cwd = process.cwd() } = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(command, {
+      shell: true,
+      stdio: "inherit",
+      cwd,
+      env: process.env,
+    });
+
+    child.once("error", (err) => {
+      console.error(style.red(`No pude ejecutar el comando: ${err.message}`));
+      resolve({ ok: false, code: 1 });
+    });
+
+    child.once("close", (code) => {
+      const exit = typeof code === "number" ? code : 1;
+      resolve({ ok: exit === 0, code: exit });
+    });
+  });
+}
+
+/**
+ * Confirm + run an install command.
+ * @returns {Promise<'done'|'back'>}
+ */
+async function confirmAndRunInstall(tool, command, { yes = false } = {}) {
+  console.log("");
+  console.log(style.bold("Comando:"));
+  console.log(`  ${style.cyan(command)}`);
+  console.log(style.dim(`cwd: ${process.cwd()}`));
+  console.log("");
+
+  if (!yes) {
+    const confirmIdx = await select(["Ejecutar", "Cancelar"], {
+      hint: TOOLS_HINT,
+      renderItem: (item, _index, selected) =>
+        selected
+          ? `${style.cyan("❯")} ${style.bold(item)}`
+          : `  ${item}`,
+    });
+    if (confirmIdx == null || confirmIdx === 1) {
+      console.log(style.dim("Cancelado."));
+      return "back";
+    }
+  }
+
+  console.log(
+    `${style.green("→")} Corriendo install de ${style.bold(tool.name)}…`
+  );
+  console.log("");
+
+  const result = await runInstallCommand(command, { cwd: process.cwd() });
+  if (result.ok) {
+    console.log("");
+    console.log(
+      `${style.green("✓")} Listo — ${style.bold(tool.name)} instalado.`
+    );
+    return "done";
+  }
+
+  console.log("");
+  console.error(
+    style.red(
+      `Falló el install (exit ${result.code}). Revisá el output de arriba.`
+    )
+  );
+  if (tool.url) {
+    console.error(style.dim(`Docs: ${tool.url}`));
+  }
+  process.exitCode = 1;
+  return "done";
+}
+
+/**
+ * Where to install: global vs project.
+ * @returns {Promise<'done'|'back'>}
+ */
+async function pickInstallWhere(tool, { yes = false } = {}) {
+  const install = normalizeInstall(tool);
+  if (!install || (!install.global && !install.project)) {
+    console.log(
+      style.yellow("Todavía no hay comando de install configurado para esta tool.")
+    );
+    if (isToolOpenable(tool)) {
+      console.log(style.dim("Podés abrir las docs desde el menú de acciones."));
+    }
+    return "back";
+  }
+
+  if (install.note) {
+    console.log(style.dim(install.note));
+    console.log("");
+  }
+
+  while (true) {
+    const whereIdx = await select(["Global", "En este proyecto"], {
+      hint: TOOLS_HINT,
+      renderItem: (item, index, selected) => {
+        const detail =
+          index === 0
+            ? install.global
+              ? style.dim(install.global)
+              : style.yellow("no configurado")
+            : install.project
+              ? style.dim(install.project)
+              : style.yellow("no configurado");
+        if (selected) {
+          return `${style.cyan("❯")} ${style.bold(item)}\n    ${detail}`;
+        }
+        return `  ${item}\n    ${detail}`;
+      },
+    });
+
+    if (whereIdx == null) return "back";
+
+    const wantGlobal = whereIdx === 0;
+    const command = wantGlobal ? install.global : install.project;
+
+    if (!command) {
+      if (wantGlobal) {
+        console.log(
+          style.yellow(
+            "No hay install global para esta tool. Probá «En este proyecto» o abrí las docs."
+          )
+        );
+      } else {
+        console.log(
+          style.yellow(
+            "Install en este proyecto no está disponible para esta tool."
+          )
+        );
+      }
+      console.log("");
+
+      const fallbackLabels = [];
+      const fallbackActions = [];
+      if (wantGlobal && install.project) {
+        fallbackLabels.push("Usar install de proyecto");
+        fallbackActions.push("project");
+      }
+      if (!wantGlobal && install.global) {
+        fallbackLabels.push("Usar install global");
+        fallbackActions.push("global");
+      }
+      if (isToolOpenable(tool)) {
+        fallbackLabels.push("Abrir docs");
+        fallbackActions.push("docs");
+      }
+      fallbackLabels.push("Volver");
+      fallbackActions.push("back");
+
+      const fbIdx = await select(fallbackLabels, { hint: TOOLS_HINT });
+      if (fbIdx == null || fallbackActions[fbIdx] === "back") {
+        continue;
+      }
+      const action = fallbackActions[fbIdx];
+      if (action === "docs") {
+        await openToolUrl(tool);
+        return "done";
+      }
+      if (action === "global") {
+        return confirmAndRunInstall(tool, install.global, { yes });
+      }
+      if (action === "project") {
+        return confirmAndRunInstall(tool, install.project, { yes });
+      }
+      continue;
+    }
+
+    return confirmAndRunInstall(tool, command, { yes });
+  }
+}
+
+/**
+ * Action picker for one tool: open docs and/or install.
+ * @returns {Promise<'done'|'back'>}
+ */
+async function pickToolAction(tool, { yes = false } = {}) {
+  if (tool.comingSoon || (!isToolOpenable(tool) && !toolHasInstall(tool))) {
+    console.log(
+      style.yellow(
+        `${tool.name} todavía no tiene acciones — pronto sumamos link e install.`
+      )
+    );
+    if (tool.blurb) console.log(style.dim(`  ${tool.blurb}`));
+    return "back";
+  }
+
+  while (true) {
+    const actions = [];
+    if (isToolOpenable(tool)) {
+      actions.push({ id: "open", label: "Abrir repo / docs" });
+    }
+    if (toolHasInstall(tool)) {
+      actions.push({ id: "install", label: "Instalar" });
+    }
+
+    if (actions.length === 0) {
+      console.log(
+        style.yellow(
+          `${tool.name} todavía no tiene acciones — pronto sumamos link e install.`
+        )
+      );
+      return "back";
+    }
+
+    console.log(
+      [
+        style.bold(tool.name),
+        style.dim(tool.blurb),
+        "",
+      ].join("\n")
+    );
+
+    if (!toolHasInstall(tool)) {
+      console.log(
+        style.dim("Install aún no configurado en el catálogo — solo docs.")
+      );
+      console.log("");
+    }
+
+    const actionIdx = await select(
+      actions.map((a) => a.label),
+      {
+        hint: TOOLS_HINT,
+        renderItem: (item, _index, selected) =>
+          selected
+            ? `${style.cyan("❯")} ${style.bold(item)}`
+            : `  ${item}`,
+      }
+    );
+
+    if (actionIdx == null) return "back";
+
+    const action = actions[actionIdx];
+    if (action.id === "open") {
+      await openToolUrl(tool);
+      return "done";
+    }
+
+    if (action.id === "install") {
+      const result = await pickInstallWhere(tool, { yes });
+      if (result === "back") {
+        // Re-print tool header on next loop iteration.
+        continue;
+      }
+      return result;
+    }
   }
 }
 
 /**
  * Tool picker for one section. Returns:
- * - true  → user opened a tool (or saw coming-soon); stay done
+ * - true  → user finished an action (open/install)
  * - false → user cancelled / went back
  */
-async function pickToolInSection(section) {
+async function pickToolInSection(section, { yes = false } = {}) {
   const tools = section.tools ?? [];
   if (tools.length === 0) {
     console.log(style.dim("Esta sección todavía no tiene tools."));
     return true;
   }
 
-  console.log(
-    [
-      style.bold(section.name),
-      style.dim(section.blurb),
-      "",
-    ].join("\n")
-  );
+  while (true) {
+    console.log(
+      [style.bold(section.name), style.dim(section.blurb), ""].join("\n")
+    );
 
-  const labels = tools.map((t) => t.name);
-  const picked = await select(labels, {
-    hint: TOOLS_HINT,
-    renderItem: (_item, index, selected) => {
-      const tool = tools[index];
-      const soon = !isToolOpenable(tool);
-      const tag = soon ? `  ${style.yellow("(próximamente)")}` : "";
-      const name = style.bold(tool.name);
-      const blurb = style.dim(tool.blurb);
+    const labels = tools.map((t) => t.name);
+    const picked = await select(labels, {
+      hint: TOOLS_HINT,
+      renderItem: (_item, index, selected) => {
+        const tool = tools[index];
+        const soon = Boolean(tool.comingSoon || !tool.url);
+        const tag = soon ? `  ${style.yellow("(próximamente)")}` : "";
+        const installTag =
+          !soon && toolHasInstall(tool)
+            ? `  ${style.dim("(install)")}`
+            : "";
+        const name = style.bold(tool.name);
+        const blurb = style.dim(tool.blurb);
 
-      if (selected) {
-        return `${style.cyan("❯")} ${name}${tag}\n    ${blurb}`;
-      }
-      return `  ${name}${tag}\n    ${blurb}`;
-    },
-  });
+        if (selected) {
+          return `${style.cyan("❯")} ${name}${tag}${installTag}\n    ${blurb}`;
+        }
+        return `  ${name}${tag}${installTag}\n    ${blurb}`;
+      },
+    });
 
-  if (picked == null) return false;
+    if (picked == null) return false;
 
-  await openToolUrl(tools[picked]);
-  return true;
+    const result = await pickToolAction(tools[picked], { yes });
+    if (result === "done") return true;
+    // back → tool picker again
+  }
 }
 
-async function runToolsInteractive({ noBanner = false, section = null } = {}) {
+async function runToolsInteractive({
+  noBanner = false,
+  section = null,
+  yes = false,
+} = {}) {
   const headed = withBanner(
     [
       style.bold("Catálogo de tools"),
@@ -613,11 +892,11 @@ async function runToolsInteractive({ noBanner = false, section = null } = {}) {
 
   // Jump straight into a section's tool picker when requested.
   if (section) {
-    await pickToolInSection(section);
+    await pickToolInSection(section, { yes });
     return;
   }
 
-  // Nested: sections → tools; Esc/q on tools returns to sections.
+  // Nested: sections → tools → actions; Esc/q goes back one level.
   while (true) {
     const sectionLabels = toolSections.map((s) => s.name);
     const sectionIdx = await select(sectionLabels, {
@@ -639,7 +918,7 @@ async function runToolsInteractive({ noBanner = false, section = null } = {}) {
     }
 
     const chosen = toolSections[sectionIdx];
-    const stayed = await pickToolInSection(chosen);
+    const stayed = await pickToolInSection(chosen, { yes });
     if (stayed) return;
 
     // Back to sections — reprint the heading so the nested loop stays clear.
@@ -660,6 +939,7 @@ async function runTools(
     noBanner = false,
     noInteractive = false,
     listOnly = false,
+    yes = false,
   } = {}
 ) {
   const name = args.find((a) => !a.startsWith("-"));
@@ -673,6 +953,7 @@ async function runTools(
     }
   }
 
+  // Non-TTY / --json / --list: never run installs; only list catalog.
   if (json || listOnly || noInteractive) {
     printTools({ json, noBanner, section });
     return;
@@ -683,7 +964,7 @@ async function runTools(
     return;
   }
 
-  await runToolsInteractive({ noBanner, section });
+  await runToolsInteractive({ noBanner, section, yes });
 }
 
 function parseArgs(argv) {
@@ -706,6 +987,7 @@ export async function run(argv) {
   const noBanner = flags.has("--no-banner");
   const json = flags.has("--json");
   const noInteractive = flags.has("--no-interactive");
+  const yes = flags.has("--yes") || flags.has("-y");
 
   if (flags.has("-h") || flags.has("--help")) {
     console.log(helpText({ noBanner }));
@@ -765,6 +1047,7 @@ export async function run(argv) {
     await runTools(rest, {
       json,
       noBanner,
+      yes: yes || rest.includes("--yes") || rest.includes("-y"),
       noInteractive:
         noInteractive || flags.has("--list") || rest.includes("--list"),
       listOnly: flags.has("--list") || rest.includes("--list"),

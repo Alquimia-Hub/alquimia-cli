@@ -19,7 +19,7 @@ Comandos
   info     Qué es Alquimia, la descripción de la comunidad y links a web, GitHub, X, Discord y WhatsApp
   join     Menú para sumarte; abrí Discord (recomendado), WhatsApp, X, GitHub o la web
   events   Calls de lun/mié 17:00 ARG; en TTY elegí con ↑↓ y Enter abre el evento en Discord
-  tools    Catálogo de herramientas (terminal, agents, harnesses, diseño, testing); en TTY elegí sección → tool y Enter abre el link
+  tools    Catálogo de tools; en TTY: sección → tool → acción (abrir docs o instalar). Esc/q vuelve un nivel
   open     Abrí una red puntual en el navegador (`open discord`, `open x`, etc.)
   help     Ayuda completa con opciones, alias y ejemplos
   version  Versión instalada de la CLI
@@ -100,21 +100,33 @@ alquimia events --no-banner
 
 ### tools
 
-Catálogo anidado de herramientas recomendadas por la comunidad (terminal, agents, harnesses, diseño, testing). En TTY: primero elegís la **sección**, después la **tool**; Enter abre el link oficial. Esc / `q` en tools vuelve a secciones; en secciones sale. Las tools marcadas como próximamente no abren el navegador.
+Catálogo anidado de herramientas recomendadas por la comunidad (terminal, agents, harnesses, skills, diseño, testing).
 
-Sin TTY, con `--json`, `--list` o `--no-interactive`, imprime el árbol sin raw mode. Podés saltar a una sección con su `id`:
+En TTY el flujo es:
+
+1. **Sección** → **tool** → **acción**
+2. Acciones: **Abrir repo / docs** (abre `tool.url`) y, si la tool tiene `install` en el catálogo, **Instalar**
+3. Si elegís Instalar: **dónde** — **Global** (`install.global`) o **En este proyecto** (`install.project`). Si el path no está configurado, te lo dice y ofrece la otra opción o abrir docs
+4. Antes de correr el comando, confirmás con **Ejecutar** / **Cancelar** (o usá `--yes` / `-y` para saltear)
+5. Esc / `q` vuelve un nivel: acciones → tools → secciones → salir
+
+Las tools `comingSoon` no ofrecen abrir ni instalar. Los comandos de install son strings estáticos del catálogo (nunca se evalúa input remoto).
+
+Sin TTY, con `--json`, `--list` o `--no-interactive`, solo lista el catálogo (incluye metadata de `install`) — **nunca** corre installs ni cuelga. Podés saltar a una sección con su `id`:
 
 ```bash
 alquimia tools
 alquimia tools agents
 alquimia tools harnesses
+alquimia tools skills
 alquimia tools --list
 alquimia tools --json
 alquimia tools testing --list
 alquimia tools --no-banner
+alquimia tools --yes   # saltea confirmación de install (TTY)
 ```
 
-El catálogo vive en `src/tools.js` (fácil de ampliar).
+El catálogo vive en `src/tools.js` (fácil de ampliar). Los `install` son best-effort (p. ej. `brew` en macOS); la nota de cada tool aclara supuestos y alternativas.
 
 ### version
 
@@ -138,6 +150,7 @@ node bin/alquimia.js tools --list
 node bin/alquimia.js tools --json
 node bin/alquimia.js tools agents --list
 node bin/alquimia.js tools harnesses --list
+node bin/alquimia.js tools skills --list
 node bin/alquimia.js info --json
 node scripts/postinstall.js
 ```

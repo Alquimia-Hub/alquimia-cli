@@ -27,7 +27,7 @@ export const commands = [
     name: "tools",
     usage: "tools [sección]",
     blurb:
-      "Catálogo de herramientas (terminal, agents, harnesses, diseño, testing); en TTY elegí sección → tool y Enter abre el link",
+      "Catálogo de tools; en TTY: sección → tool → acción (abrir docs o instalar). Esc/q vuelve un nivel",
   },
   {
     name: "open",
