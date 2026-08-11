@@ -235,56 +235,6 @@ export const toolSections = [
       },
     ],
   },
-  {
-    id: "gratis",
-    name: "Gratis / free tiers",
-    blurb: "Productos con free tier útil — curado + directorio it's free*",
-    tools: [
-      {
-        id: "itsfree",
-        name: "it's free*",
-        blurb:
-          "Directorio bilingüe de herramientas con capas gratis realmente útiles para developers",
-        url: "https://itsfree.dev/es",
-      },
-      {
-        id: "freebuff",
-        name: "Freebuff",
-        blurb: "Coding agent con capa gratis (con ads) — útil para probar sin tarjeta",
-        url: "https://freebuff.com",
-      },
-      {
-        id: "groq",
-        name: "Groq",
-        blurb: "Inferencia ultra rápida con API free tier",
-        url: "https://groq.com",
-      },
-      {
-        id: "openrouter",
-        name: "OpenRouter",
-        blurb: "Un API para muchos LLMs, con modelos free",
-        url: "https://openrouter.ai",
-      },
-      {
-        id: "supabase",
-        name: "Supabase",
-        blurb: "Postgres + auth + storage con free tier sólido",
-        url: "https://supabase.com",
-      },
-      {
-        id: "vercel",
-        name: "Vercel",
-        blurb: "Deploy web en el plan Hobby free",
-        url: "https://vercel.com",
-      },
-      {
-        id: "neon",
-        name: "Neon",
-        blurb: "Postgres serverless con free tier generoso",
-        url: "https://neon.tech",
-      },
-    ],
-  },
 ];
 
 /**
