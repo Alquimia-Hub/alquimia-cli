@@ -16,12 +16,12 @@ Después del install vas a ver un tip con los comandos. Resumen (fuente: `src/co
 
 ```
 Comandos
-  info      Qué es Alquimia, la descripción de la comunidad y links a web, GitHub, X, Discord y WhatsApp
-  join      Menú para sumarte; abrí Discord (recomendado), WhatsApp, X, GitHub o la web
-  events    Community calls de lunes y miércoles 17:00 ARG, con cuál es la próxima
-  open      Abrí una red puntual en el navegador (`open discord`, `open x`, etc.)
-  help      Ayuda completa con opciones, alias y ejemplos
-  version   Versión instalada de la CLI
+  info     Qué es Alquimia, la descripción de la comunidad y links a web, GitHub, X, Discord y WhatsApp
+  join     Menú para sumarte; abrí Discord (recomendado), WhatsApp, X, GitHub o la web
+  events   Community calls de lunes y miércoles 17:00 ARG, con cuál es la próxima
+  open     Abrí una red puntual en el navegador (`open discord`, `open x`, etc.)
+  help     Ayuda completa con opciones, alias y ejemplos
+  version  Versión instalada de la CLI
 ```
 
 Empezá con `alquimia info` o `alquimia help`.
