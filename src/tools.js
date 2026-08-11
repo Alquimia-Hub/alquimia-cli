@@ -27,20 +27,41 @@ export const toolSections = [
   {
     id: "agents",
     name: "Herramientas de agentes",
-    blurb: "Agents, coding agents y orquestación",
+    blurb: "Coding agents para el día a día",
     tools: [
       {
         id: "opencode",
-        name: "Open Code",
+        name: "OpenCode",
         blurb: "Coding agent open source que corre en la terminal",
         url: "https://opencode.ai",
       },
+    ],
+  },
+  {
+    id: "harnesses",
+    name: "Harnesses / managers",
+    blurb: "Managers, configuradores y orquestación de agents",
+    tools: [
       {
         id: "orca",
         name: "Orca",
         blurb:
           "ADE para correr varios agents en paralelo, cada uno en su worktree",
         url: "https://www.onorca.dev",
+      },
+      {
+        id: "omo",
+        name: "Oh My OpenAgent (OMO)",
+        blurb:
+          "Harness multi-agent para OpenCode: orquesta specialists en paralelo (omo.dev)",
+        url: "https://github.com/code-yeongyu/oh-my-openagent",
+      },
+      {
+        id: "gentle-ai",
+        name: "Gentle-AI",
+        blurb:
+          "Configurador de ecosistema para coding agents: memoria, SDD, skills y review",
+        url: "https://github.com/Gentleman-Programming/gentle-ai",
       },
     ],
   },
