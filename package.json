@@ -1,6 +1,6 @@
 {
   "name": "alquimia",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CLI de la comunidad Alquimia — IA, automatización y productividad",
   "bin": {
     "alquimia": "bin/alquimia.js"
@@ -10,6 +10,10 @@
     "bin",
     "src"
   ],
+  "scripts": {
+    "start": "node bin/alquimia.js",
+    "info": "node bin/alquimia.js info"
+  },
   "keywords": [
     "alquimia",
     "cli",
@@ -21,9 +25,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Alquimia-Hub/alquimia-cli.git"
+    "url": "https://github.com/Nicolopez603/alquimia-cli.git"
   },
   "homepage": "https://alquimia.community/",
+  "bugs": {
+    "url": "https://github.com/Nicolopez603/alquimia-cli/issues"
+  },
   "engines": {
     "node": ">=18"
   }

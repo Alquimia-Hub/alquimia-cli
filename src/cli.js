@@ -1,56 +1,196 @@
-import { community } from "./community.js";
+import {
+  community,
+  linkAliases,
+  linkLabels,
+  linkOrder,
+  resolveLinkKey,
+} from "./community.js";
+import { openUrl } from "./open-url.js";
+import { closest } from "./suggest.js";
+import { style } from "./style.js";
+import { getVersion } from "./version.js";
 
-const HELP = `alquimia — CLI de la comunidad Alquimia 🧪
+const COMMANDS = ["info", "open", "help", "version"];
 
-Uso:
-  alquimia <comando>
-
-Comandos:
-  info    Descripción y redes de la comunidad
-  help    Mostrar esta ayuda
-  version Mostrar versión
-`;
-
-function printInfo() {
-  const { name, tagline, description, links } = community;
-  console.log(
-    [
-      "",
-      `🧪 ${name}`,
-      tagline,
-      "",
-      description,
-      "",
-      "Redes",
-      `  Web       ${links.web}`,
-      `  GitHub    ${links.github}`,
-      `  Twitter   ${links.twitter}`,
-      `  Discord   ${links.discord}`,
-      `  WhatsApp  ${links.whatsapp}`,
-      "",
-    ].join("\n")
-  );
+function banner() {
+  return [
+    "",
+    style.bold(style.magenta(`🧪 ${community.name}`)),
+    style.dim(community.tagline),
+    "",
+  ].join("\n");
 }
 
-export function run(args) {
-  const [cmd] = args;
+function helpText() {
+  const pad = (name, desc) => `  ${style.cyan(name.padEnd(18))} ${desc}`;
 
-  if (!cmd || cmd === "help" || cmd === "--help" || cmd === "-h") {
-    console.log(HELP);
+  return [
+    banner().trimEnd(),
+    "",
+    style.bold("Uso"),
+    `  alquimia ${style.dim("[comando] [opciones]")}`,
+    "",
+    style.bold("Comandos"),
+    pad("info", "Descripción y redes de la comunidad"),
+    pad("open <red>", "Abrí una red en el navegador"),
+    pad("help", "Mostrá esta ayuda"),
+    pad("version", "Mostrá la versión"),
+    "",
+    style.bold("Opciones"),
+    pad("-h, --help", "Ayuda"),
+    pad("-v, --version", "Versión"),
+    pad("--json", "Salida JSON (con info)"),
+    "",
+    style.bold("Redes para open"),
+    `  ${linkOrder.map((k) => style.cyan(k)).join(" · ")}`,
+    style.dim("  alias: site→web, x→twitter, gh→github, wa→whatsapp"),
+    "",
+    style.bold("Ejemplos"),
+    "  alquimia info",
+    "  alquimia info --json",
+    "  alquimia open discord",
+    "  alquimia open x",
+    "",
+  ].join("\n");
+}
+
+function printInfo({ json = false } = {}) {
+  if (json) {
+    console.log(JSON.stringify(community, null, 2));
     return;
   }
 
-  if (cmd === "version" || cmd === "--version" || cmd === "-v") {
-    console.log("0.1.0");
+  const labelWidth = Math.max(...linkOrder.map((k) => linkLabels[k].length));
+  const lines = [
+    "",
+    style.bold(style.magenta(`🧪 ${community.name}`)),
+    style.cyan(community.tagline),
+    "",
+    community.description,
+    "",
+    style.bold("Redes"),
+  ];
+
+  for (const key of linkOrder) {
+    const label = linkLabels[key].padEnd(labelWidth);
+    lines.push(`  ${style.green(label)}  ${style.dim(community.links[key])}`);
+  }
+
+  lines.push("");
+  console.log(lines.join("\n"));
+}
+
+async function runOpen(args) {
+  const name = args.find((a) => !a.startsWith("-"));
+
+  if (!name) {
+    console.error(style.red("Falta la red a abrir.") + "\n");
+    console.error(style.bold("Uso:") + " alquimia open <red>");
+    console.error(
+      style.bold("Redes:") +
+        " " +
+        linkOrder.join(", ") +
+        style.dim(" (alias: site, x, gh, wa)")
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const key = resolveLinkKey(name);
+  if (!key) {
+    const suggestion = closest(name, [
+      ...linkOrder,
+      ...Object.keys(linkAliases),
+    ]);
+    console.error(style.red(`No conozco la red "${name}".`));
+    if (suggestion) {
+      console.error(style.yellow(`¿Quisiste decir "${suggestion}"?`));
+    } else {
+      console.error(
+        style.dim(`Opciones: ${linkOrder.join(", ")} (alias: site, x, gh, wa)`)
+      );
+    }
+    process.exitCode = 1;
+    return;
+  }
+
+  const url = community.links[key];
+  const label = linkLabels[key];
+
+  try {
+    await openUrl(url);
+    console.log(
+      `${style.green("✓")} Abriendo ${style.bold(label)}…\n  ${style.dim(url)}`
+    );
+  } catch (err) {
+    console.error(
+      style.red(`No pude abrir el navegador: ${err.message}`)
+    );
+    console.error(style.dim(`URL: ${url}`));
+    process.exitCode = 1;
+  }
+}
+
+function parseArgs(argv) {
+  const flags = new Set();
+  const positionals = [];
+
+  for (const arg of argv) {
+    if (arg.startsWith("-")) {
+      flags.add(arg);
+    } else {
+      positionals.push(arg);
+    }
+  }
+
+  return { flags, positionals };
+}
+
+export async function run(argv) {
+  const { flags, positionals } = parseArgs(argv);
+
+  if (flags.has("-h") || flags.has("--help")) {
+    console.log(helpText());
+    return;
+  }
+
+  if (flags.has("-v") || flags.has("--version")) {
+    console.log(getVersion());
+    return;
+  }
+
+  const [cmd, ...rest] = positionals;
+
+  if (!cmd) {
+    console.log(helpText());
+    return;
+  }
+
+  if (cmd === "help") {
+    console.log(helpText());
+    return;
+  }
+
+  if (cmd === "version") {
+    console.log(getVersion());
     return;
   }
 
   if (cmd === "info") {
-    printInfo();
+    printInfo({ json: flags.has("--json") });
     return;
   }
 
-  console.error(`Comando desconocido: ${cmd}\n`);
-  console.log(HELP);
+  if (cmd === "open") {
+    await runOpen(rest);
+    return;
+  }
+
+  const suggestion = closest(cmd, COMMANDS);
+  console.error(style.red(`Comando desconocido: ${cmd}`));
+  if (suggestion) {
+    console.error(style.yellow(`¿Quisiste decir "${suggestion}"?`));
+  }
+  console.error(style.dim("Probá: alquimia --help"));
   process.exitCode = 1;
 }
