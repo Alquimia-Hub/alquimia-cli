@@ -40,6 +40,17 @@ export const toolSections = [
           note: "macOS/Homebrew. En Linux: mirá las docs del repo.",
         },
       },
+      {
+        id: "npkill",
+        name: "npkill",
+        blurb: "Encontrá y borrá node_modules pesados",
+        url: "https://npkill.js.org/",
+        install: {
+          global: "npm i -g npkill",
+          project: null,
+          note: "También: npx npkill (sin install global).",
+        },
+      },
     ],
   },
   {
@@ -97,6 +108,18 @@ export const toolSections = [
           note: "Installer oficial. Alternativa: go install github.com/gentleman-programming/gentle-ai/v2/cmd/gentle-ai@latest",
         },
       },
+      {
+        id: "codexbar",
+        name: "CodexBar",
+        blurb:
+          "Menu bar macOS: límites de Codex y coding agents, con countdown al reset",
+        url: "https://github.com/steipete/CodexBar",
+        install: {
+          global: "brew install --cask codexbar",
+          project: null,
+          note: "macOS 14+. Alternativa: descargá el release desde GitHub o mirá https://codexbar.app",
+        },
+      },
     ],
   },
   {
@@ -152,6 +175,13 @@ export const toolSections = [
           note: "Escribe skills editables en el proyecto. Site: https://www.aihero.dev/skills · Update: npx skills update. Claude Code plugin: claude plugins install mattpocock-skills",
         },
       },
+      {
+        id: "system_prompts_leaks",
+        name: "system_prompts_leaks",
+        blurb:
+          "Colección de system prompts de agents/productos (referencia)",
+        url: "https://github.com/asgeirtj/system_prompts_leaks",
+      },
     ],
   },
   {
@@ -165,6 +195,18 @@ export const toolSections = [
         blurb:
           "Vibe design local: tu coding agent como motor de diseño (desktop/app — seguí la guía del sitio)",
         url: "https://open-design.ai",
+      },
+      {
+        id: "uideck",
+        name: "UIDeck",
+        blurb: "Templates y UI kits gratis/premium para landing y apps",
+        url: "https://uideck.com/",
+      },
+      {
+        id: "kokonutui",
+        name: "KokonutUI",
+        blurb: "Componentes UI open source listos para copiar",
+        url: "https://github.com/kokonut-labs/kokonutui",
       },
     ],
   },
@@ -190,6 +232,56 @@ export const toolSections = [
         blurb: "Recomendación de la comunidad — link pronto",
         url: null,
         comingSoon: true,
+      },
+    ],
+  },
+  {
+    id: "gratis",
+    name: "Gratis / free tiers",
+    blurb: "Productos con free tier útil — curado + directorio it's free*",
+    tools: [
+      {
+        id: "itsfree",
+        name: "it's free*",
+        blurb:
+          "Directorio bilingüe de herramientas con capas gratis realmente útiles para developers",
+        url: "https://itsfree.dev/es",
+      },
+      {
+        id: "freebuff",
+        name: "Freebuff",
+        blurb: "Coding agent con capa gratis (con ads) — útil para probar sin tarjeta",
+        url: "https://freebuff.com",
+      },
+      {
+        id: "groq",
+        name: "Groq",
+        blurb: "Inferencia ultra rápida con API free tier",
+        url: "https://groq.com",
+      },
+      {
+        id: "openrouter",
+        name: "OpenRouter",
+        blurb: "Un API para muchos LLMs, con modelos free",
+        url: "https://openrouter.ai",
+      },
+      {
+        id: "supabase",
+        name: "Supabase",
+        blurb: "Postgres + auth + storage con free tier sólido",
+        url: "https://supabase.com",
+      },
+      {
+        id: "vercel",
+        name: "Vercel",
+        blurb: "Deploy web en el plan Hobby free",
+        url: "https://vercel.com",
+      },
+      {
+        id: "neon",
+        name: "Neon",
+        blurb: "Postgres serverless con free tier generoso",
+        url: "https://neon.tech",
       },
     ],
   },

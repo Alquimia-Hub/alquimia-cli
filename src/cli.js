@@ -82,6 +82,7 @@ function helpText({ noBanner = false } = {}) {
     "  alquimia tools agents",
     "  alquimia tools harnesses",
     "  alquimia tools skills",
+    "  alquimia tools gratis",
     "  alquimia tools --list",
     "  alquimia tools --json",
     "",

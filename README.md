@@ -100,7 +100,7 @@ alquimia events --no-banner
 
 ### tools
 
-Catálogo anidado de herramientas recomendadas por la comunidad (terminal, agents, harnesses, skills, diseño, testing).
+Catálogo anidado de herramientas recomendadas por la comunidad (terminal, agents, harnesses, skills, diseño, testing, gratis / free tiers).
 
 En TTY el flujo es:
 
@@ -119,9 +119,11 @@ alquimia tools
 alquimia tools agents
 alquimia tools harnesses
 alquimia tools skills
+alquimia tools gratis
 alquimia tools --list
 alquimia tools --json
 alquimia tools testing --list
+alquimia tools gratis --list
 alquimia tools --no-banner
 alquimia tools --yes   # saltea confirmación de install (TTY)
 ```
@@ -151,6 +153,7 @@ node bin/alquimia.js tools --json
 node bin/alquimia.js tools agents --list
 node bin/alquimia.js tools harnesses --list
 node bin/alquimia.js tools skills --list
+node bin/alquimia.js tools gratis --list
 node bin/alquimia.js info --json
 node scripts/postinstall.js
 ```
