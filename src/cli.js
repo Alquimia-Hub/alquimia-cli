@@ -1,3 +1,4 @@
+import { renderBanner } from "./banner.js";
 import {
   community,
   linkAliases,
@@ -12,20 +13,18 @@ import { getVersion } from "./version.js";
 
 const COMMANDS = ["info", "open", "help", "version"];
 
-function banner() {
-  return [
-    "",
-    style.bold(style.magenta(`🧪 ${community.name}`)),
-    style.dim(community.tagline),
-    "",
-  ].join("\n");
+function bannerBlock({ noBanner = false } = {}) {
+  if (noBanner) return "";
+  return ["", renderBanner(), ""].join("\n");
 }
 
-function helpText() {
+function helpText({ noBanner = false } = {}) {
   const pad = (name, desc) => `  ${style.cyan(name.padEnd(18))} ${desc}`;
 
   return [
-    banner().trimEnd(),
+    bannerBlock({ noBanner }).trimEnd(),
+    "",
+    style.dim(community.tagline),
     "",
     style.bold("Uso"),
     `  alquimia ${style.dim("[comando] [opciones]")}`,
@@ -40,6 +39,7 @@ function helpText() {
     pad("-h, --help", "Ayuda"),
     pad("-v, --version", "Versión"),
     pad("--json", "Salida JSON (con info)"),
+    pad("--no-banner", "Ocultá el banner ASCII"),
     "",
     style.bold("Redes para open"),
     `  ${linkOrder.map((k) => style.cyan(k)).join(" · ")}`,
@@ -54,7 +54,7 @@ function helpText() {
   ].join("\n");
 }
 
-function printInfo({ json = false } = {}) {
+function printInfo({ json = false, noBanner = false } = {}) {
   if (json) {
     console.log(JSON.stringify(community, null, 2));
     return;
@@ -62,8 +62,8 @@ function printInfo({ json = false } = {}) {
 
   const labelWidth = Math.max(...linkOrder.map((k) => linkLabels[k].length));
   const lines = [
+    bannerBlock({ noBanner }).trimEnd(),
     "",
-    style.bold(style.magenta(`🧪 ${community.name}`)),
     style.cyan(community.tagline),
     "",
     community.description,
@@ -148,9 +148,10 @@ function parseArgs(argv) {
 
 export async function run(argv) {
   const { flags, positionals } = parseArgs(argv);
+  const noBanner = flags.has("--no-banner");
 
   if (flags.has("-h") || flags.has("--help")) {
-    console.log(helpText());
+    console.log(helpText({ noBanner }));
     return;
   }
 
@@ -162,12 +163,12 @@ export async function run(argv) {
   const [cmd, ...rest] = positionals;
 
   if (!cmd) {
-    console.log(helpText());
+    console.log(helpText({ noBanner }));
     return;
   }
 
   if (cmd === "help") {
-    console.log(helpText());
+    console.log(helpText({ noBanner }));
     return;
   }
 
@@ -177,7 +178,7 @@ export async function run(argv) {
   }
 
   if (cmd === "info") {
-    printInfo({ json: flags.has("--json") });
+    printInfo({ json: flags.has("--json"), noBanner });
     return;
   }
 

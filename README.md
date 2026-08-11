@@ -14,22 +14,24 @@ Requiere **Node.js 18+**.
 
 ## Usage
 
-Sin argumentos (o con `-h` / `--help`) muestra la ayuda:
+Sin argumentos (o con `-h` / `--help`) muestra la ayuda, con un banner ASCII (wordmark + triángulo) arriba:
 
 ```bash
 alquimia
 alquimia --help
 ```
 
+Usá `--no-banner` en `help` / `info` si preferís omitirlo.
+
 ### info
 
-Descripción de la comunidad y links a las redes:
+Descripción de la comunidad y links a las redes (incluye el banner en salida humana):
 
 ```bash
 alquimia info
 ```
 
-Salida machine-readable:
+Salida machine-readable (sin banner):
 
 ```bash
 alquimia info --json
@@ -74,7 +76,7 @@ node bin/alquimia.js open discord
 node bin/alquimia.js info --json
 ```
 
-Los links viven centralizados en `src/community.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
+Los links viven centralizados en `src/community.js`. El banner ASCII está en `src/banner.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
 
 ESM (`"type": "module"`), sin dependencias de runtime, licencia MIT.
 
