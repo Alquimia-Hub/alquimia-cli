@@ -19,7 +19,7 @@ Comandos
   info     Qué es Alquimia, la descripción de la comunidad y links a web, GitHub, X, Discord y WhatsApp
   join     Menú para sumarte; abrí Discord (recomendado), WhatsApp, X, GitHub o la web
   events   Calls de lun/mié 17:00 ARG; en TTY elegí con ↑↓ y Enter abre el evento en Discord
-  tools    Catálogo de herramientas (terminal, agents, diseño, testing); en TTY elegí sección → tool y Enter abre el link
+  tools    Catálogo de herramientas (terminal, agents, harnesses, diseño, testing); en TTY elegí sección → tool y Enter abre el link
   open     Abrí una red puntual en el navegador (`open discord`, `open x`, etc.)
   help     Ayuda completa con opciones, alias y ejemplos
   version  Versión instalada de la CLI
@@ -100,13 +100,14 @@ alquimia events --no-banner
 
 ### tools
 
-Catálogo anidado de herramientas recomendadas por la comunidad (terminal, agents, diseño, testing). En TTY: primero elegís la **sección**, después la **tool**; Enter abre el link oficial. Esc / `q` en tools vuelve a secciones; en secciones sale. Las tools marcadas como próximamente no abren el navegador.
+Catálogo anidado de herramientas recomendadas por la comunidad (terminal, agents, harnesses, diseño, testing). En TTY: primero elegís la **sección**, después la **tool**; Enter abre el link oficial. Esc / `q` en tools vuelve a secciones; en secciones sale. Las tools marcadas como próximamente no abren el navegador.
 
 Sin TTY, con `--json`, `--list` o `--no-interactive`, imprime el árbol sin raw mode. Podés saltar a una sección con su `id`:
 
 ```bash
 alquimia tools
 alquimia tools agents
+alquimia tools harnesses
 alquimia tools --list
 alquimia tools --json
 alquimia tools testing --list
@@ -136,6 +137,7 @@ node bin/alquimia.js events --json
 node bin/alquimia.js tools --list
 node bin/alquimia.js tools --json
 node bin/alquimia.js tools agents --list
+node bin/alquimia.js tools harnesses --list
 node bin/alquimia.js info --json
 node scripts/postinstall.js
 ```

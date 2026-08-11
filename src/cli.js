@@ -76,6 +76,7 @@ function helpText({ noBanner = false } = {}) {
     "  alquimia events --json",
     "  alquimia tools",
     "  alquimia tools agents",
+    "  alquimia tools harnesses",
     "  alquimia tools --list",
     "  alquimia tools --json",
     "",
