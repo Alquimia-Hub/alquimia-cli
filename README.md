@@ -19,6 +19,7 @@ Comandos
   info     Qué es Alquimia, la descripción de la comunidad y links a web, GitHub, X, Discord y WhatsApp
   join     Menú para sumarte; abrí Discord (recomendado), WhatsApp, X, GitHub o la web
   events   Calls de lun/mié 17:00 ARG; en TTY elegí con ↑↓ y Enter abre el evento en Discord
+  tools    Catálogo de herramientas (terminal, agents, diseño, testing); en TTY elegí sección → tool y Enter abre el link
   open     Abrí una red puntual en el navegador (`open discord`, `open x`, etc.)
   help     Ayuda completa con opciones, alias y ejemplos
   version  Versión instalada de la CLI
@@ -35,7 +36,7 @@ alquimia
 alquimia --help
 ```
 
-Usá `--no-banner` en `help` / `info` / `join` / `events` si preferís omitirlo.
+Usá `--no-banner` en `help` / `info` / `join` / `events` / `tools` si preferís omitirlo.
 
 ### info
 
@@ -97,6 +98,23 @@ alquimia events --json
 alquimia events --no-banner
 ```
 
+### tools
+
+Catálogo anidado de herramientas recomendadas por la comunidad (terminal, agents, diseño, testing). En TTY: primero elegís la **sección**, después la **tool**; Enter abre el link oficial. Esc / `q` en tools vuelve a secciones; en secciones sale. Las tools marcadas como próximamente no abren el navegador.
+
+Sin TTY, con `--json`, `--list` o `--no-interactive`, imprime el árbol sin raw mode. Podés saltar a una sección con su `id`:
+
+```bash
+alquimia tools
+alquimia tools agents
+alquimia tools --list
+alquimia tools --json
+alquimia tools testing --list
+alquimia tools --no-banner
+```
+
+El catálogo vive en `src/tools.js` (fácil de ampliar).
+
 ### version
 
 ```bash
@@ -115,11 +133,14 @@ node bin/alquimia.js open discord
 node bin/alquimia.js join --json
 node bin/alquimia.js events --list
 node bin/alquimia.js events --json
+node bin/alquimia.js tools --list
+node bin/alquimia.js tools --json
+node bin/alquimia.js tools agents --list
 node bin/alquimia.js info --json
 node scripts/postinstall.js
 ```
 
-Links, menú de `join` y agenda de `events` viven centralizados en `src/community.js` (incl. URLs de scheduled events de Discord). El selector con flechas de `events` está en `src/select.js` (reutilizable). La lista de comandos + blurbs (help, `info`, postinstall y este README) está en `src/commands.js`. El banner ASCII está en `src/banner.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
+Links, menú de `join` y agenda de `events` viven centralizados en `src/community.js` (incl. URLs de scheduled events de Discord). El catálogo de `tools` está en `src/tools.js`. El selector con flechas (`events` y `tools`) está en `src/select.js` (reutilizable). La lista de comandos + blurbs (help, `info`, postinstall y este README) está en `src/commands.js`. El banner ASCII está en `src/banner.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
 
 ESM (`"type": "module"`), sin dependencias de runtime, licencia MIT.
 

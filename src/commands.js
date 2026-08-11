@@ -24,6 +24,12 @@ export const commands = [
       "Calls de lun/mié 17:00 ARG; en TTY elegí con ↑↓ y Enter abre el evento en Discord",
   },
   {
+    name: "tools",
+    usage: "tools [sección]",
+    blurb:
+      "Catálogo de herramientas (terminal, agents, diseño, testing); en TTY elegí sección → tool y Enter abre el link",
+  },
+  {
     name: "open",
     usage: "open <red>",
     blurb:
