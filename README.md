@@ -171,7 +171,7 @@ ESM (`"type": "module"`), sin dependencias de runtime (Vitest solo en dev), lice
 
 ## Changelog
 
-- **0.5.5** — Fix: redraw portable del picker (`select`) sin DECSC/DECRC; limpia por conteo visual de filas (ancho de glifos + CSI/OSC) para que ↑↓ no apile menús en VS Code / Cursor.
+- **0.5.5** — Fix: redraw portable del picker (`select`) sin DECSC/DECRC; limpia por conteo visual de filas (ancho de glifos + CSI/OSC) para que ↑↓ no apile menús en VS Code / Cursor. Suite Vitest (unit + fake-TTY stacking + CLI smoke).
 - **0.5.4** — Fix: el picker interactivo (`select`) limpia filas visuales (wrap + ANSI) al navegar ↑↓, sin filas fantasma. Se quitó el placeholder `by the way tests` del catálogo de testing (queda Vitest).
 
 ## License
