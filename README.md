@@ -100,7 +100,7 @@ alquimia events --no-banner
 
 ### tools
 
-Catálogo anidado de herramientas recomendadas por la comunidad (terminal, agents, harnesses, diseño, testing).
+Catálogo anidado de herramientas recomendadas por la comunidad (terminal, agents, harnesses, skills, diseño, testing).
 
 En TTY el flujo es:
 
@@ -118,6 +118,7 @@ Sin TTY, con `--json`, `--list` o `--no-interactive`, solo lista el catálogo (i
 alquimia tools
 alquimia tools agents
 alquimia tools harnesses
+alquimia tools skills
 alquimia tools --list
 alquimia tools --json
 alquimia tools testing --list
@@ -149,6 +150,7 @@ node bin/alquimia.js tools --list
 node bin/alquimia.js tools --json
 node bin/alquimia.js tools agents --list
 node bin/alquimia.js tools harnesses --list
+node bin/alquimia.js tools skills --list
 node bin/alquimia.js info --json
 node scripts/postinstall.js
 ```

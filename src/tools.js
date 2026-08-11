@@ -100,6 +100,49 @@ export const toolSections = [
     ],
   },
   {
+    id: "skills",
+    name: "Skills",
+    blurb: "Skills y MCPs que le suman contexto/poder a tus agents",
+    tools: [
+      {
+        id: "context7",
+        name: "Context7",
+        blurb:
+          "Docs al día para LLMs: mete referencias de librerías en el contexto del agent (MCP)",
+        url: "https://github.com/upstash/context7",
+        install: {
+          global: "npx ctx7 setup",
+          project: null,
+          note: "Setup oficial (CLI + skill o MCP). Alternativa manual: agregá el MCP en Cursor/OpenCode — docs en el repo.",
+        },
+      },
+      {
+        id: "codegraph",
+        name: "Code Graph",
+        blurb:
+          "Grafo de código local para agents: menos grep, más contexto preciso (MCP)",
+        url: "https://github.com/colbymchenry/codegraph",
+        install: {
+          global: "npm i -g @colbymchenry/codegraph",
+          project: null,
+          note: "Después: codegraph install (wire MCP) y codegraph init por proyecto. Atajo: npx @colbymchenry/codegraph",
+        },
+      },
+      {
+        id: "fff",
+        name: "FFF",
+        blurb:
+          "File search SDK ultra rápido/preciso para AI agents, Neovim, Rust, Node, etc.",
+        url: "https://github.com/dmtrKovalenko/fff",
+        install: {
+          global: "brew install dmtrKovalenko/fff/fff-mcp",
+          project: null,
+          note: "macOS/Linux via Homebrew. También: curl -L https://dmtrkovalenko.dev/install-fff-mcp.sh | bash — después registrá el MCP en tu agent.",
+        },
+      },
+    ],
+  },
+  {
     id: "design",
     name: "Herramientas de diseño",
     blurb: "Diseño, UI y creativo",
