@@ -19,9 +19,12 @@ import {
   FIELD_ROWS,
   PLAYER_H,
   JUMP_VELOCITY,
+  attachDinoInput,
+  playDino,
 } from "../src/dino/game.js";
-import { createFakeStdin, createFakeStdout } from "./helpers/fake-tty.js";
+import { createFakeStdin, createFakeStdout, KEY } from "./helpers/fake-tty.js";
 import { mkdtempSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -248,5 +251,49 @@ describe("dino — runWithDino gating", () => {
     expect(out.playedDino).toBe(false);
     expect(out.result).toEqual({ ok: true, code: 0 });
     expect(job).toHaveBeenCalledOnce();
+  });
+});
+
+describe("dino — input wiring", () => {
+  it("attachDinoInput registers and detaches stdin data listener", () => {
+    const stdin = createFakeStdin();
+    const seen = [];
+    const onData = (chunk) => seen.push(String(chunk));
+    const detach = attachDinoInput(stdin, onData);
+    stdin.emit("data", " ");
+    expect(seen).toEqual([" "]);
+    detach();
+    stdin.emit("data", "q");
+    expect(seen).toEqual([" "]);
+  });
+
+  it("playDino source wires stdin.on data via attachDinoInput", () => {
+    const srcPath = fileURLToPath(
+      new URL("../src/dino/game.js", import.meta.url)
+    );
+    const src = readFileSync(srcPath, "utf8");
+    expect(src).toMatch(/stdin\.on\(\s*["']data["']/);
+    expect(src).toMatch(/attachDinoInput\(\s*stdin\s*,\s*onData\s*\)/);
+    expect(src).toContain('detachInput = attachDinoInput');
+  });
+
+  it("playDino listens for jump/quit keys after raw mode", async () => {
+    const stdin = createFakeStdin();
+    const stdout = createFakeStdout(64);
+    const dir = mkdtempSync(join(tmpdir(), "alquimia-dino-"));
+    const session = playDino({
+      stdin,
+      stdout,
+      width: 48,
+      tickMs: 10_000,
+      hiScorePath: join(dir, "hi.json"),
+      env: {},
+    });
+    expect(stdin.isRaw).toBe(true);
+    expect(stdin.listenerCount("data")).toBe(1);
+    stdin.emit("data", KEY.q);
+    const ended = await session;
+    expect(ended.status).toBe("stopped");
+    expect(stdin.listenerCount("data")).toBe(0);
   });
 });

@@ -993,6 +993,30 @@ function paintFrame(state, opts = {}) {
   });
 }
 
+
+/**
+ * Register the TTY data listener used by playDino.
+ * Extracted so tests can assert wiring without driving the full game loop.
+ * @param {{ on?: Function, off?: Function, removeListener?: Function }} stdin
+ * @param {(chunk: string | Buffer) => void} onData
+ * @returns {() => void} detach
+ */
+export function attachDinoInput(stdin, onData) {
+  if (typeof stdin?.on !== "function") {
+    throw new Error('dino input requires stdin.on("data", …)');
+  }
+  stdin.on("data", onData);
+  return () => {
+    if (typeof stdin.off === "function") {
+      stdin.off("data", onData);
+      return;
+    }
+    if (typeof stdin.removeListener === "function") {
+      stdin.removeListener("data", onData);
+    }
+  };
+}
+
 /**
  * Play interactive dino on a TTY.
  * @param {{
@@ -1031,6 +1055,8 @@ export function playDino(opts = {}) {
   let drawn = false;
   let settled = false;
   let timer = null;
+  /** @type {() => void} */
+  let detachInput = () => {};
   const wasRaw = Boolean(stdin.isRaw);
 
   const write = (s) => {
@@ -1066,7 +1092,7 @@ export function playDino(opts = {}) {
     if (settled) return;
     settled = true;
     if (timer) clearInterval(timer);
-    stdin.off("data", onData);
+    detachInput();
     try {
       stdin.setRawMode(wasRaw);
     } catch {
@@ -1112,6 +1138,7 @@ export function playDino(opts = {}) {
     return skipped;
   }
   stdin.resume();
+  detachInput = attachDinoInput(stdin, onData);
   write(CURSOR_HIDE);
 
   if (sidecar) {
