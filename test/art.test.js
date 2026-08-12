@@ -183,16 +183,37 @@ describe("Ghostty config patcher", () => {
   });
 
   it("patches with # BEGIN/END alquimia-art and Ghostty 1.2 keys", () => {
-    expect(GHOSTTY_DEFAULT_OPACITY).toBe(0.55);
+    expect(GHOSTTY_DEFAULT_OPACITY).toBe(0.28);
     const next = patchGhosttyConfigContent("theme = dark\n", art);
     expect(next).toContain(GHOSTTY_BLOCK_BEGIN);
     expect(next).toContain(GHOSTTY_BLOCK_END);
     expect(next).toContain(`background-image = ${art}`);
-    expect(next).toContain("background-image-opacity = 0.55");
+    expect(next).toContain("background-image-opacity = 0.28");
     expect(next).toContain("background-image-position = center");
-    expect(next).toContain("background-image-fit = contain");
+    expect(next).toContain("background-image-fit = cover");
     expect(next).toContain("background-image-repeat = false");
     expect(next).toContain("theme = dark");
+  });
+
+  it("re-apply overwrites contain/high opacity with cover + 0.28", () => {
+    const stale = [
+      "theme = dark",
+      GHOSTTY_BLOCK_BEGIN,
+      `background-image = ${art}`,
+      "background-image-opacity = 0.55",
+      "background-image-position = center",
+      "background-image-fit = contain",
+      "background-image-repeat = false",
+      GHOSTTY_BLOCK_END,
+      "",
+    ].join("\n");
+    const next = patchGhosttyConfigContent(stale, art);
+    expect(next).toContain("background-image-fit = cover");
+    expect(next).not.toContain("background-image-fit = contain");
+    expect(next).toContain("background-image-opacity = 0.28");
+    expect(next).not.toContain("background-image-opacity = 0.55");
+    expect(next.match(/background-image-fit\s*=/g)).toHaveLength(1);
+    expect(next.match(/background-image-opacity\s*=/g)).toHaveLength(1);
   });
 
   it("clears BEGIN/END block, >>> legacy block, and # alquimia-art pairs", () => {
@@ -592,7 +613,9 @@ describe("WezTerm config patcher", () => {
   it("creates minimal config_builder file when empty", () => {
     const next = patchWeztermConfigContent("", art);
     expect(next).toContain("wezterm.config_builder()");
-    expect(next).toContain("window_background_image");
+    expect(next).toContain("config.background");
+    expect(next).toContain("width = 'Cover'");
+    expect(next).toContain("height = 'Cover'");
     expect(next).toContain(LUA_BLOCK_BEGIN);
     expect(next).toContain("return config");
   });
@@ -607,9 +630,12 @@ describe("WezTerm config patcher", () => {
     ].join("\n");
     const once = patchWeztermConfigContent(prev, art);
     expect(once).toContain("config.font_size = 14");
-    expect(once).toContain(`config.window_background_image = '${art}'`);
+    expect(once).toContain(`source = { File = '${art}' }`);
+    expect(once).toContain("width = 'Cover'");
+    expect(once).toContain("height = 'Cover'");
+    expect(once).toContain("brightness = 0.18");
     const twice = patchWeztermConfigContent(once, "/other.png");
-    expect(twice.match(/window_background_image\s*=/g)).toHaveLength(1);
+    expect(twice.match(/config\.background\s*=/g)).toHaveLength(1);
     expect(twice).toContain("/other.png");
     const cleared = clearWeztermArtFromConfig(twice);
     expect(cleared).not.toContain(LUA_BLOCK_BEGIN);
@@ -677,6 +703,8 @@ describe("Hyper config patcher", () => {
     const next = patchHyperConfigContent(prev, art);
     expect(next).toContain(CSS_BLOCK_BEGIN);
     expect(next).toContain("file:///Users/nico/art.png");
+    expect(next).toContain("center / cover no-repeat");
+    expect(next).toContain("rgba(0,0,0,0.72)");
     expect(next).toContain(".tabs_nav { color: red; }");
     const cleared = clearHyperArtFromConfig(next);
     expect(cleared).not.toContain(CSS_BLOCK_BEGIN);
@@ -687,6 +715,8 @@ describe("Hyper config patcher", () => {
     const next = patchHyperConfigContent("", art);
     expect(next).toContain("module.exports");
     expect(next).toContain(".terms_terms");
+    expect(next).toContain("center / cover no-repeat");
+    expect(next).toContain("rgba(0,0,0,0.72)");
   });
 });
 
@@ -700,6 +730,8 @@ describe("Tabby config patcher", () => {
     const next = patchTabbyConfigContent(prev, art);
     expect(next).toContain(CSS_BLOCK_BEGIN);
     expect(next).toContain("file:///home/u/art.png");
+    expect(next).toContain("background-size: cover");
+    expect(next).toContain("opacity: 0.2");
     expect(next).toContain("opacity: 1");
     const cleared = clearTabbyArtFromConfig(next);
     expect(cleared).not.toContain(CSS_BLOCK_BEGIN);
@@ -724,6 +756,7 @@ describe("Windows Terminal settings patcher", () => {
     expect(next).toContain('"backgroundImage"');
     expect(next).toContain("C:/img/art.png");
     expect(next).toContain('"backgroundImageOpacity": 0.2');
+    expect(next).toContain('"backgroundImageStretchMode": "uniformToFill"');
     expect(next).toContain("cursorShape");
     const cleared = clearWindowsTerminalSettings(next);
     expect(cleared).not.toContain("backgroundImage");

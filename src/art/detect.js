@@ -131,7 +131,7 @@ export const SUPPORTED_TERMINALS = [
   { id: "iterm2", name: "iTerm2", method: "OSC 1337 (live)" },
   { id: "kitty", name: "Kitty", method: "kitty @ set-background-image" },
   { id: "ghostty", name: "Ghostty", method: "config background-image" },
-  { id: "wezterm", name: "WezTerm", method: "config window_background_image" },
+  { id: "wezterm", name: "WezTerm", method: "config background Cover" },
   { id: "contour", name: "Contour", method: "config background_image" },
   { id: "tilix", name: "Tilix", method: "gsettings background-image" },
   { id: "terminology", name: "Terminology", method: "tybg" },
