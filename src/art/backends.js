@@ -28,14 +28,21 @@ import {
 import { reloadGhosttyConfig } from "./ghostty-reload.js";
 
 /**
- * Readable default for CLI brand art (Ghostty 1.2+).
- * Raised from 0.35 so white-on-black dither is visible in dark mode.
+ * Ghostty brand-art opacity (1.2+). Kept low so light dither art
+ * does not wash out CLI text in dark mode. Range target ~0.25–0.30.
  */
-export const GHOSTTY_DEFAULT_OPACITY = 0.55;
+export const GHOSTTY_DEFAULT_OPACITY = 0.28;
 
-const WEZTERM_BRIGHTNESS = 0.25;
-const CONTOUR_OPACITY = 0.25;
-const WT_OPACITY = 0.25;
+/** WezTerm HSB brightness multiplier — dim wallpaper, readable text. */
+const WEZTERM_BRIGHTNESS = 0.18;
+/** Contour background_image.opacity */
+const CONTOUR_OPACITY = 0.2;
+/** Windows Terminal backgroundImageOpacity */
+const WT_OPACITY = 0.2;
+/** Hyper dark scrim over `.terms_termGroup` (higher = more readable). */
+const HYPER_SCRIM_ALPHA = 0.72;
+/** Tabby CSS `opacity` on the viewport background image. */
+const TABBY_BG_OPACITY = 0.2;
 
 // ── Ghostty ──────────────────────────────────────────────────────────
 
@@ -223,7 +230,7 @@ export function patchGhosttyConfigContent(
     `background-image = ${imagePath}`,
     `background-image-opacity = ${opacity}`,
     "background-image-position = center",
-    "background-image-fit = contain",
+    "background-image-fit = cover",
     "background-image-repeat = false",
   ]);
 }
@@ -433,9 +440,22 @@ export function patchWeztermConfigContent(
 ) {
   const body = [
     `-- Managed by alquimia art. Requires a \`config\` table (wezterm.config_builder()).`,
+    `-- Uses background Cover (fill terminal, preserve aspect; may crop) — not Contain/stretch.`,
     `if config then`,
-    `  config.window_background_image = ${luaString(imagePath)}`,
-    `  config.window_background_image_hsb = { brightness = ${brightness}, hue = 1.0, saturation = 1.0 }`,
+    `  config.window_background_image = nil`,
+    `  config.window_background_image_hsb = nil`,
+    `  config.background = {`,
+    `    {`,
+    `      source = { File = ${luaString(imagePath)} },`,
+    `      width = 'Cover',`,
+    `      height = 'Cover',`,
+    `      horizontal_align = 'Center',`,
+    `      vertical_align = 'Middle',`,
+    `      repeat_x = 'NoRepeat',`,
+    `      repeat_y = 'NoRepeat',`,
+    `      hsb = { brightness = ${brightness}, hue = 1.0, saturation = 1.0 },`,
+    `    },`,
+    `  }`,
     `end`,
   ];
 
@@ -764,7 +784,7 @@ export function patchHyperConfigContent(content, imagePath) {
   const cssBody = [
     CSS_BLOCK_BEGIN,
     `.terms_terms { background: url(${fileUrl}) center / cover no-repeat; }`,
-    `.terms_termGroup { background: rgba(0,0,0,0.55) !important; }`,
+    `.terms_termGroup { background: rgba(0,0,0,${HYPER_SCRIM_ALPHA}) !important; }`,
     CSS_BLOCK_END,
   ];
 
@@ -905,7 +925,7 @@ export function patchTabbyConfigContent(content, imagePath) {
   const fileUrl = pathToFileUrl(imagePath);
   const css = [
     CSS_BLOCK_BEGIN,
-    `.xterm-viewport { background-image: url("${fileUrl}"); background-repeat: no-repeat; background-size: cover; opacity: 0.25; z-index: 1; }`,
+    `.xterm-viewport { background-image: url("${fileUrl}"); background-repeat: no-repeat; background-size: cover; opacity: ${TABBY_BG_OPACITY}; z-index: 1; }`,
     CSS_BLOCK_END,
   ].join(" ");
 

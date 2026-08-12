@@ -205,6 +205,7 @@ ESM (`"type": "module"`), sin dependencias de runtime (Vitest solo en dev), lice
 
 ## Changelog
 
+- **0.5.13** — Ghostty `alquimia art`: `background-image-fit = cover` (llena la terminal; puede recortar bordes) + opacity default **0.28** (texto legible en dark mode). Re-aplicar `alquimia art` reescribe cover+0.28 (no deja `contain`/0.55 viejos). WezTerm: `config.background` `Cover` + brightness `0.18`. Contour/WT opacity `0.2`; Hyper scrim `0.72`; Tabby CSS opacity `0.2`. Si alguna versión de Ghostty letterboxea con `cover`, podés probar `background-image-fit = stretch` a mano. Sin deps nuevas.
 - **0.5.12** — Ghostty `alquimia art`: auto-reload tras escribir/limpiar config (`SIGUSR2` / macOS ⌘⇧,). `--clear` **siempre** manda reload (aunque no haya bloque en el archivo) y limpia `background-image` huérfano hacia `~/.local/share/alquimia/art.png`. Opacity default `0.55`. **Terminal.app**: soporte por perfil `Alquimia` (bookmark via Swift + switch AppleScript; puede pedir Automatización/Accesibilidad). Tests mockeados; sin deps nuevas.
 - **0.5.11** — `alquimia art`: multi-terminal (iTerm2, Kitty, Ghostty, WezTerm, Contour, Tilix, Terminology, Hyper, Tabby, Windows Terminal). Ghostty: bloque `# BEGIN/END alquimia-art` con keys 1.2+ (`background-image`, opacity 0.35, position/fit/repeat); paths App Support + XDG + `GHOSTTY_CONFIG_PATH`; reload requerido (no OSC). Art en `~/.local/share/alquimia/art.png`. Honest UX donde no hay API. Tests con temp HOME.
 - **0.5.10** — Tests: cobertura Vitest ampliada (positivos / negativos / bordes) para `select`, smoke CLI y helpers de `community.js`.
@@ -227,15 +228,15 @@ Setear el fondo desde la CLI **no es universal**. `alquimia art` detecta la term
 |---|---|---|---|
 | **iTerm2** | macOS | OSC 1337 `SetBackgroundImageFile` | No (live) |
 | **Kitty** | macOS/Linux | `kitty @ set-background-image` | No (remote control) |
-| **Ghostty** | macOS/Linux | Config write (`background-image` + opacity 0.55 / fit/position/repeat), bloque `# BEGIN/END alquimia-art` — **no OSC**; auto-reload vía **SIGUSR2** (Ghostty 1.2+) y fallback macOS ⌘⇧, (AppleScript; puede pedir Accesibilidad). `--clear` siempre recarga aunque el archivo ya esté limpio | Auto cuando se puede; si no, menú o ⌘⇧, / Ctrl+Shift+, |
+| **Ghostty** | macOS/Linux | Config write (`background-image` + opacity **0.28** / `fit=cover` / position/repeat), bloque `# BEGIN/END alquimia-art` — **no OSC**; auto-reload vía **SIGUSR2** (Ghostty 1.2+) y fallback macOS ⌘⇧, (AppleScript; puede pedir Accesibilidad). `--clear` siempre recarga aunque el archivo ya esté limpio. Si `cover` letterboxea en tu Ghostty, probá `stretch` a mano en el bloque | Auto cuando se puede; si no, menú o ⌘⇧, / Ctrl+Shift+, |
 | **Terminal.app** | macOS | Perfil `Alquimia` con `BackgroundImageBookmark` (helper Swift) + AppleScript `current settings` → perfil; `--clear` vuelve al perfil previo (state en `~/.local/share/alquimia/`). **No OSC**; puede pedir Automatización/Accesibilidad la 1ª vez | Switch de perfil (live) |
-| **WezTerm** | macOS/Linux | `~/.wezterm.lua` `window_background_image` (+ hsb) | Auto / Ctrl+Shift+R |
+| **WezTerm** | macOS/Linux | `~/.wezterm.lua` `config.background` con `Cover` (+ hsb) | Auto / Ctrl+Shift+R |
 | **Contour** | macOS/Linux | `contour.yml` `color_schemes.default.background_image` | Reiniciar ventana |
 | **Tilix** | Linux | `gsettings` `com.gexperts.Tilix.Settings background-image` | No (puede pedir transparencia en el profile) |
 | **Terminology** | Linux | `tybg` | No |
-| **Hyper** | macOS/Linux | `.hyper.js` CSS (`background: url(file://…)`) | Auto / reiniciar |
-| **Tabby** | macOS/Linux | `config.yaml` `appearance.css` | Reiniciar / Acrylic on |
-| **Windows Terminal** | Windows / WSL | `settings.json` `profiles.defaults.backgroundImage` | Guardar settings / nueva pestaña |
+| **Hyper** | macOS/Linux | `.hyper.js` CSS (`background: … center / cover`) | Auto / reiniciar |
+| **Tabby** | macOS/Linux | `config.yaml` `appearance.css` (`background-size: cover`) | Reiniciar / Acrylic on |
+| **Windows Terminal** | Windows / WSL | `settings.json` `profiles.defaults.backgroundImage` + `uniformToFill` | Guardar settings / nueva pestaña |
 
 **Sin soporte real (mensaje honesto + `--open`):** Alacritty (no hay wallpaper nativo), VS Code/Cursor integrated, GNOME Terminal/Ptyxis, Konsole (wallpaper vive en el color scheme; no lo tocamos), xterm/st/foot, tmux/screen solos.
 
@@ -249,3 +250,5 @@ alquimia art --clear  # clear (OSC / CLI / bloques gestionados)
 alquimia art --open   # abrir el PNG
 alquimia art --path   # imprimir ruta del asset bundledo
 ```
+
+Ghostty defaults in the managed block: `background-image-fit = cover`, `background-image-opacity = 0.28`, `position = center`, `repeat = false`. Re-run `alquimia art` to refresh those values (it won’t leave an old `contain` / high opacity). If `cover` still letterboxes on your Ghostty build, edit the block to `background-image-fit = stretch` and reload.
