@@ -33,8 +33,8 @@ export const TICK_MS = 1000 / TARGET_FPS; // ~16.667ms ≈ 60 FPS
 /** Per-tick scale vs the original 50ms tuning (20/60). */
 export const DT = REF_FPS / TARGET_FPS;
 
-export const GRAVITY = 0.55 * DT * DT;
-export const JUMP_VELOCITY = 2.85 * DT;
+export const GRAVITY = 0.75 * DT * DT;
+export const JUMP_VELOCITY = 3.4 * DT;
 export const BASE_SPEED = 1.15 * DT;
 export const SPEED_GAIN = 0.00035 * DT;
 export const SPAWN_MIN = Math.round(28 / DT);

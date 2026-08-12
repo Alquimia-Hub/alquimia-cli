@@ -19,6 +19,7 @@ import {
   FIELD_ROWS,
   PLAYER_H,
   JUMP_VELOCITY,
+  GRAVITY,
   TICK_MS,
   TARGET_FPS,
   DT,
@@ -98,7 +99,8 @@ describe("dino — physics", () => {
     expect(TARGET_FPS).toBe(60);
     expect(TICK_MS).toBeCloseTo(1000 / 60, 5);
     expect(DT).toBeCloseTo(20 / 60, 5);
-    expect(JUMP_VELOCITY).toBeCloseTo(2.85 * DT, 5);
+    expect(JUMP_VELOCITY).toBeCloseTo(3.4 * DT, 5);
+    expect(GRAVITY).toBeCloseTo(0.75 * DT * DT, 5);
   });
 
   it("step moves player up then back to ground", () => {
