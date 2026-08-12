@@ -387,6 +387,7 @@ describe("Ghostty config patcher", () => {
 describe("Ghostty auto-reload (SIGUSR2 / AppleScript)", () => {
   it("isGhosttyProcess matches exact binary / macOS app path only", () => {
     expect(isGhosttyProcess("ghostty", "/usr/bin/ghostty")).toBe(true);
+    expect(isGhosttyProcess("Ghostty", "Ghostty")).toBe(true);
     expect(
       isGhosttyProcess(
         "ghostty",
@@ -419,12 +420,36 @@ describe("Ghostty auto-reload (SIGUSR2 / AppleScript)", () => {
       "  200 ghostty          /usr/bin/ghostty",
       "  201 ghostty-helper   /usr/bin/ghostty-helper",
       "  300 Ghostty          /Applications/Ghostty.app/Contents/MacOS/ghostty",
+      "  301 Ghostty          Ghostty",
       "  400 node             node /tmp/ghostty-cli.js",
       "",
     ].join("\n");
     expect(
       findGhosttyPids({ platform: "linux", psOutput })
-    ).toEqual([200, 300]);
+    ).toEqual([200, 300, 301]);
+  });
+
+  it("set always calls reload after write", () => {
+    const root = mkdtempSync(join(tmpdir(), "alquimia-art-"));
+    try {
+      const xdg = join(root, "xdg");
+      let reloadCalls = 0;
+      const set = setGhosttyBackground("/abs/art.png", {
+        home: root,
+        platform: "linux",
+        xdgConfigHome: xdg,
+        env: {},
+        reloadConfig: () => {
+          reloadCalls += 1;
+          return { ok: true, method: "sigusr2", pids: [1] };
+        },
+      });
+      expect(set.ok).toBe(true);
+      expect(reloadCalls).toBe(1);
+      expect(set.reloaded).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("signalGhosttySigusr2 uses process.kill with SIGUSR2 (mocked)", () => {

@@ -364,7 +364,9 @@ export function clearGhosttyBackground(opts = {}) {
       configPath: last,
       changed: false,
       ...reload,
-      successMessage: "No había líneas de alquimia art en Ghostty.",
+      successMessage:
+        "Nada en config de alquimia art; no pude auto-reload (¿Ghostty corriendo?).",
+      reloadHint: reload.reloadHint || ghosttyReloadHint(opts.platform ?? platform()),
     };
   } catch (err) {
     return {

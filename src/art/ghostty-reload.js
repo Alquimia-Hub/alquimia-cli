@@ -7,7 +7,7 @@ export const GHOSTTY_MAC_BIN_FRAGMENT =
 
 /**
  * True when a process listing row is the Ghostty binary (not a similarly named tool).
- * Prefers exact binary basename `ghostty`, or the macOS app Contents path.
+ * Prefers exact binary basename `ghostty` (case-insensitive), or the macOS app path.
  *
  * @param {string} comm  process name (ps `comm`)
  * @param {string} args  full command line (ps `args` / `command`)
@@ -16,12 +16,13 @@ export const GHOSTTY_MAC_BIN_FRAGMENT =
 export function isGhosttyProcess(comm, args) {
   const name = String(comm || "").trim();
   const cmdline = String(args || "").trim();
-  if (name === "ghostty") return true;
+  // macOS often reports comm as "Ghostty"; Linux as "ghostty".
+  if (name.toLowerCase() === "ghostty") return true;
 
   const exe = firstArgvToken(cmdline);
   if (!exe) return false;
 
-  const base = exe.split(/[/\\]/).pop() || "";
+  const base = (exe.split(/[/\\]/).pop() || "").toLowerCase();
   if (base === "ghostty") return true;
 
   // Path match only when the executable itself is under Ghostty.app (not a random arg).
@@ -31,7 +32,7 @@ export function isGhosttyProcess(comm, args) {
 }
 
 /**
- * Discover running Ghostty PIDs via `ps` (no new deps).
+ * Discover running Ghostty PIDs via `ps` (+ `pgrep` fallback). No new deps.
  * Linux: `ps -eo pid=,comm=,args=`
  * macOS: `ps -axo pid=,comm=,command=`
  *
@@ -39,29 +40,45 @@ export function isGhosttyProcess(comm, args) {
  *   platform?: string,
  *   spawnSync?: typeof fsSpawnSync,
  *   psOutput?: string,
+ *   pgrepPids?: number[],
+ *   skipPgrep?: boolean,
  * }} [opts]
  * @returns {number[]}
  */
 export function findGhosttyPids(opts = {}) {
   const plat = opts.platform ?? osPlatform();
+  const run = opts.spawnSync ?? fsSpawnSync;
+  const pids = new Set();
+
   const output =
     opts.psOutput != null
       ? String(opts.psOutput)
-      : runPsListing(plat, opts.spawnSync ?? fsSpawnSync);
-  if (!output) return [];
+      : runPsListing(plat, run);
 
-  const pids = new Set();
-  for (const line of output.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const m = trimmed.match(/^(\d+)\s+(\S+)(?:\s+(.*))?$/);
-    if (!m) continue;
-    const pid = Number(m[1]);
-    const comm = m[2];
-    const args = m[3] || "";
-    if (!Number.isFinite(pid) || pid <= 0) continue;
-    if (isGhosttyProcess(comm, args || comm)) pids.add(pid);
+  if (output) {
+    for (const line of output.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const m = trimmed.match(/^(\d+)\s+(\S+)(?:\s+(.*))?$/);
+      if (!m) continue;
+      const pid = Number(m[1]);
+      const comm = m[2];
+      const args = m[3] || "";
+      if (!Number.isFinite(pid) || pid <= 0) continue;
+      if (isGhosttyProcess(comm, args || comm)) pids.add(pid);
+    }
   }
+
+  // Supplemental discovery when ps columns are odd / empty.
+  // Skip when caller injected psOutput-only fixtures unless pgrepPids given.
+  if (opts.pgrepPids) {
+    for (const pid of opts.pgrepPids) {
+      if (Number.isFinite(pid) && pid > 0) pids.add(pid);
+    }
+  } else if (!opts.skipPgrep && opts.psOutput == null) {
+    for (const pid of findPidsViaPgrep(run)) pids.add(pid);
+  }
+
   return [...pids].sort((a, b) => a - b);
 }
 
@@ -237,6 +254,36 @@ function runPsListing(plat, run) {
   } catch {
     return "";
   }
+}
+
+/**
+ * Exact-name / macOS-path pgrep fallback (still avoids unrelated *ghostty* tools).
+ * @param {typeof fsSpawnSync} run
+ * @returns {number[]}
+ */
+function findPidsViaPgrep(run) {
+  const found = new Set();
+  const queries = [
+    ["-x", "ghostty"],
+    ["-ix", "ghostty"],
+    ["-f", GHOSTTY_MAC_BIN_FRAGMENT],
+  ];
+  for (const args of queries) {
+    try {
+      const result = run("pgrep", args, {
+        encoding: "utf8",
+        timeout: 3000,
+      });
+      if (result.status !== 0 && result.status !== 1) continue;
+      for (const line of String(result.stdout || "").split(/\r?\n/)) {
+        const pid = Number(line.trim());
+        if (Number.isFinite(pid) && pid > 0) found.add(pid);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return [...found];
 }
 
 /**
