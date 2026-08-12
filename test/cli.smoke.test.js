@@ -21,7 +21,7 @@ describe("CLI smoke — version", () => {
     const r = runCli(["version"]);
     expect(r.status).toBe(0);
     expect(r.stdout.trim()).toBe(pkg.version);
-    expect(pkg.version).toBe("0.5.16");
+    expect(pkg.version).toBe("0.5.17");
   });
 
   it("-v / --version match version command", () => {
@@ -212,7 +212,7 @@ describe("CLI smoke — doctor", () => {
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/Alquimia doctor/);
     expect(r.stdout).toMatch(/Node/);
-    expect(r.stdout).toMatch(/0\.5\.15/);
+    expect(r.stdout).toMatch(/0\.5\.17/);
   });
 
   it("doctor --json has expected keys", () => {
@@ -247,10 +247,11 @@ describe("CLI smoke — completion", () => {
 });
 
 describe("CLI smoke — help mentions new commands", () => {
-  it("help lists doctor and completion", () => {
+  it("help lists doctor, completion and dino", () => {
     const r = runCli(["help", "--no-update"]);
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/\bdoctor\b/);
     expect(r.stdout).toMatch(/\bcompletion\b/);
+    expect(r.stdout).toMatch(/\bdino\b/);
   });
 });

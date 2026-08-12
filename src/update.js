@@ -14,6 +14,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { getVersion } from "./version.js";
 import { style } from "./style.js";
+import { runWithDino } from "./dino/game.js";
 
 /** Skip network if last successful check was within this window. */
 export const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
@@ -432,14 +433,27 @@ export function runUpdateForeground({
       windowsHide: true,
     });
 
+    let capturedOut = "";
+    let capturedErr = "";
+    if (child.stdout && typeof child.stdout.on === "function") {
+      child.stdout.on("data", (buf) => {
+        capturedOut += String(buf);
+      });
+    }
+    if (child.stderr && typeof child.stderr.on === "function") {
+      child.stderr.on("data", (buf) => {
+        capturedErr += String(buf);
+      });
+    }
+
     child.once("error", (err) => {
       console.error(style.red(`No pude correr npm: ${err.message}`));
-      resolve({ ok: false, code: 1 });
+      resolve({ ok: false, code: 1, stdout: capturedOut, stderr: capturedErr });
     });
 
     child.once("close", (code) => {
       const exit = typeof code === "number" ? code : 1;
-      resolve({ ok: exit === 0, code: exit });
+      resolve({ ok: exit === 0, code: exit, stdout: capturedOut, stderr: capturedErr });
     });
   });
 }
@@ -550,8 +564,13 @@ export async function maybeAutoUpdate({
 
 /**
  * Explicit `alquimia update` — foreground install + result message.
+ * In TTY/interactive mode, runs Alquimia Runner while the child install runs.
+ * @param {{ noInteractive?: boolean, argv?: string[] }} [opts]
  */
-export async function runUpdateCommand() {
+export async function runUpdateCommand({
+  noInteractive = false,
+  argv = process.argv.slice(2),
+} = {}) {
   const local = getVersion();
   console.log(
     `${style.bold("Actualizando Alquimia…")} ${style.dim(`(actual: ${local})`)}`
@@ -559,7 +578,24 @@ export async function runUpdateCommand() {
   console.log(style.dim(`npm install -g ${INSTALL_SPEC}`));
   console.log("");
 
-  const result = await runUpdateForeground();
+  const { result, playedDino, dinoScore } = await runWithDino(
+    async ({ useDino }) => {
+      const stdio = useDino ? ["ignore", "pipe", "pipe"] : "inherit";
+      return runUpdateForeground({ stdio });
+    },
+    { noInteractive, argv, env: process.env }
+  );
+
+  if (playedDino) {
+    const combined = `${result.stdout || ""}${result.stderr || ""}`.trim();
+    if (combined) {
+      console.log(combined);
+    }
+    console.log(
+      style.dim(`(Alquimia Runner — score mientras actualizabas: ${dinoScore})`)
+    );
+  }
+
   if (result.ok) {
     console.log("");
     console.log(

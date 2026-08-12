@@ -34,6 +34,7 @@ import {
   runUpdateCommand,
 } from "./update.js";
 import { getVersion } from "./version.js";
+import { playDino, runWithDino } from "./dino/game.js";
 
 function bannerBlock({ noBanner = false } = {}) {
   if (noBanner) return "";
@@ -549,26 +550,47 @@ async function openToolUrl(tool) {
 /**
  * Run a static catalog shell command (never remote eval).
  * @param {string} command
- * @param {{ cwd?: string }} [opts]
- * @returns {Promise<{ ok: boolean, code: number }>}
+ * @param {{ cwd?: string, stdio?: import('node:child_process').StdioOptions }} [opts]
+ * @returns {Promise<{ ok: boolean, code: number, stdout?: string, stderr?: string }>}
  */
-function runInstallCommand(command, { cwd = process.cwd() } = {}) {
+function runInstallCommand(
+  command,
+  { cwd = process.cwd(), stdio = "inherit" } = {}
+) {
   return new Promise((resolve) => {
     const child = spawn(command, {
       shell: true,
-      stdio: "inherit",
+      stdio,
       cwd,
       env: process.env,
     });
 
+    let capturedOut = "";
+    let capturedErr = "";
+    if (child.stdout && typeof child.stdout.on === "function") {
+      child.stdout.on("data", (buf) => {
+        capturedOut += String(buf);
+      });
+    }
+    if (child.stderr && typeof child.stderr.on === "function") {
+      child.stderr.on("data", (buf) => {
+        capturedErr += String(buf);
+      });
+    }
+
     child.once("error", (err) => {
       console.error(style.red(`No pude ejecutar el comando: ${err.message}`));
-      resolve({ ok: false, code: 1 });
+      resolve({ ok: false, code: 1, stdout: capturedOut, stderr: capturedErr });
     });
 
     child.once("close", (code) => {
       const exit = typeof code === "number" ? code : 1;
-      resolve({ ok: exit === 0, code: exit });
+      resolve({
+        ok: exit === 0,
+        code: exit,
+        stdout: capturedOut,
+        stderr: capturedErr,
+      });
     });
   });
 }
@@ -577,7 +599,11 @@ function runInstallCommand(command, { cwd = process.cwd() } = {}) {
  * Confirm + run an install command.
  * @returns {Promise<'done'|'back'>}
  */
-async function confirmAndRunInstall(tool, command, { yes = false } = {}) {
+async function confirmAndRunInstall(
+  tool,
+  command,
+  { yes = false, noInteractive = false } = {}
+) {
   console.log("");
   console.log(style.bold("Comando:"));
   console.log(`  ${style.cyan(command)}`);
@@ -603,7 +629,22 @@ async function confirmAndRunInstall(tool, command, { yes = false } = {}) {
   );
   console.log("");
 
-  const result = await runInstallCommand(command, { cwd: process.cwd() });
+  const { result, playedDino, dinoScore } = await runWithDino(
+    async ({ useDino }) => {
+      const stdio = useDino ? ["ignore", "pipe", "pipe"] : "inherit";
+      return runInstallCommand(command, { cwd: process.cwd(), stdio });
+    },
+    { noInteractive, env: process.env }
+  );
+
+  if (playedDino) {
+    const combined = `${result.stdout || ""}${result.stderr || ""}`.trim();
+    if (combined) console.log(combined);
+    console.log(
+      style.dim(`(Alquimia Runner — score mientras instalabas: ${dinoScore})`)
+    );
+  }
+
   if (result.ok) {
     console.log("");
     console.log(
@@ -629,7 +670,7 @@ async function confirmAndRunInstall(tool, command, { yes = false } = {}) {
  * Where to install: global vs project.
  * @returns {Promise<'done'|'back'>}
  */
-async function pickInstallWhere(tool, { yes = false } = {}) {
+async function pickInstallWhere(tool, { yes = false, noInteractive = false } = {}) {
   const install = normalizeInstall(tool);
   if (!install || (!install.global && !install.project)) {
     console.log(
@@ -713,15 +754,15 @@ async function pickInstallWhere(tool, { yes = false } = {}) {
         return "done";
       }
       if (action === "global") {
-        return confirmAndRunInstall(tool, install.global, { yes });
+        return confirmAndRunInstall(tool, install.global, { yes, noInteractive });
       }
       if (action === "project") {
-        return confirmAndRunInstall(tool, install.project, { yes });
+        return confirmAndRunInstall(tool, install.project, { yes, noInteractive });
       }
       continue;
     }
 
-    return confirmAndRunInstall(tool, command, { yes });
+    return confirmAndRunInstall(tool, command, { yes, noInteractive });
   }
 }
 
@@ -729,7 +770,7 @@ async function pickInstallWhere(tool, { yes = false } = {}) {
  * Action picker for one tool: open docs and/or install.
  * @returns {Promise<'done'|'back'>}
  */
-async function pickToolAction(tool, { yes = false } = {}) {
+async function pickToolAction(tool, { yes = false, noInteractive = false } = {}) {
   if (tool.comingSoon || (!isToolOpenable(tool) && !toolHasInstall(tool))) {
     console.log(
       style.yellow(
@@ -793,7 +834,7 @@ async function pickToolAction(tool, { yes = false } = {}) {
     }
 
     if (action.id === "install") {
-      const result = await pickInstallWhere(tool, { yes });
+      const result = await pickInstallWhere(tool, { yes, noInteractive });
       if (result === "back") {
         // Re-print tool header on next loop iteration.
         continue;
@@ -808,7 +849,7 @@ async function pickToolAction(tool, { yes = false } = {}) {
  * - true  → user finished an action (open/install)
  * - false → user cancelled / went back
  */
-async function pickToolInSection(section, { yes = false } = {}) {
+async function pickToolInSection(section, { yes = false, noInteractive = false } = {}) {
   const tools = section.tools ?? [];
   if (tools.length === 0) {
     console.log(style.dim("Esta sección todavía no tiene tools."));
@@ -848,7 +889,7 @@ async function pickToolInSection(section, { yes = false } = {}) {
 
     if (picked == null) return false;
 
-    const result = await pickToolAction(tools[picked], { yes });
+    const result = await pickToolAction(tools[picked], { yes, noInteractive });
     if (result === "done") return true;
     // back → tool picker again
   }
@@ -858,6 +899,7 @@ async function runToolsInteractive({
   noBanner = false,
   section = null,
   yes = false,
+  noInteractive = false,
 } = {}) {
   const headed = withBanner(
     [
@@ -871,7 +913,7 @@ async function runToolsInteractive({
 
   // Jump straight into a section's tool picker when requested.
   if (section) {
-    await pickToolInSection(section, { yes });
+    await pickToolInSection(section, { yes, noInteractive });
     return;
   }
 
@@ -902,7 +944,7 @@ async function runToolsInteractive({
     }
 
     const chosen = toolSections[sectionIdx];
-    const stayed = await pickToolInSection(chosen, { yes });
+    const stayed = await pickToolInSection(chosen, { yes, noInteractive });
     if (stayed) return;
 
     // Back to sections — reprint the heading so the nested loop stays clear.
@@ -948,7 +990,7 @@ async function runTools(
     return;
   }
 
-  await runToolsInteractive({ noBanner, section, yes });
+  await runToolsInteractive({ noBanner, section, yes, noInteractive });
 }
 
 function parseArgs(argv) {
@@ -976,7 +1018,7 @@ export async function run(argv) {
 
   // Explicit update: foreground install (skips silent auto-update).
   if (cmd === "update") {
-    await runUpdateCommand();
+    await runUpdateCommand({ noInteractive, argv });
     return;
   }
 
@@ -1070,6 +1112,30 @@ export async function run(argv) {
       return;
     }
     await runArt(artOpts);
+    return;
+  }
+
+
+  if (cmd === "dino") {
+    if (noInteractive || !input.isTTY || !output.isTTY) {
+      console.error(
+        style.red("El Alquimia Runner necesita una terminal interactiva (TTY).")
+      );
+      console.error(style.dim("Probá sin --no-interactive en una terminal real."));
+      process.exitCode = 1;
+      return;
+    }
+    const result = await playDino({ mode: "standalone" });
+    if (result.status === "skipped") {
+      console.error(style.red("No pude iniciar el runner en esta terminal."));
+      process.exitCode = 1;
+      return;
+    }
+    if (result.status === "over" || result.status === "stopped") {
+      console.log(
+        style.dim(`Score final: ${result.score}`)
+      );
+    }
     return;
   }
 

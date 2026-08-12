@@ -12,7 +12,7 @@ _alquimia_completions() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
   fi
 
-  local commands="info join events tools art doctor open update completion help version"
+  local commands="info join events tools art doctor open dino update completion help version"
   local global_opts="--help -h --version -v --json --yes -y --no-banner --no-interactive --no-update --list --open --path --clear --opacity --fit"
   local sections="terminal agents harnesses skills design testing"
   local networks="web github twitter discord whatsapp site x gh wa"
