@@ -76,6 +76,20 @@ import {
   setAppleTerminalBackground,
   writeAppleTerminalState,
 } from "./art/apple-terminal.js";
+import {
+  DEFAULT_ART_FIT,
+  DEFAULT_ART_OPACITY,
+  artPrefsPath,
+  cssBackgroundSize,
+  defaultArtPrefs,
+  loadArtPrefs,
+  parseArtCliArgs,
+  parseFit,
+  parseOpacity,
+  saveArtPrefs,
+  weztermFitTokens,
+  windowsTerminalStretchMode,
+} from "./art/prefs.js";
 
 const ART_FILENAME = "art.png";
 
@@ -83,6 +97,18 @@ export {
   detectTerminal,
   SUPPORTED_TERMINALS,
   ensurePersistedArt,
+  artPrefsPath,
+  defaultArtPrefs,
+  loadArtPrefs,
+  saveArtPrefs,
+  parseArtCliArgs,
+  parseFit,
+  parseOpacity,
+  weztermFitTokens,
+  windowsTerminalStretchMode,
+  cssBackgroundSize,
+  DEFAULT_ART_FIT,
+  DEFAULT_ART_OPACITY,
   ghosttyConfigCandidates,
   resolveGhosttyConfigPath,
   patchGhosttyConfigContent,
@@ -208,12 +234,20 @@ function printUnsupportedHelp(terminal, { clearing = false } = {}) {
  *   clear?: boolean,
  *   open?: boolean,
  *   pathOnly?: boolean,
+ *   opacity?: number | null,
+ *   fit?: "cover"|"contain"|"stretch" | null,
+ *   opacityProvided?: boolean,
+ *   fitProvided?: boolean,
  * }} [opts]
  */
 export async function runArt({
   clear = false,
   open = false,
   pathOnly = false,
+  opacity = null,
+  fit = null,
+  opacityProvided = false,
+  fitProvided = false,
 } = {}) {
   const bundledPath = getArtPath();
 
@@ -228,6 +262,23 @@ export async function runArt({
     return;
   }
 
+  const prefs = loadArtPrefs();
+  const effectiveOpacity =
+    opacityProvided && opacity != null ? opacity : prefs.opacity;
+  const effectiveFit = fitProvided && fit != null ? fit : prefs.fit;
+
+  // Persist prefs when flags change them. `--clear` keeps prefs (does not wipe).
+  if (!clear && (opacityProvided || fitProvided)) {
+    try {
+      saveArtPrefs({
+        opacity: effectiveOpacity,
+        fit: effectiveFit,
+      });
+    } catch {
+      // Soft-fail: still try to apply art.
+    }
+  }
+
   // Persist so config-file terminals keep working after npm -g updates.
   let artPath = bundledPath;
   try {
@@ -237,6 +288,7 @@ export async function runArt({
   }
 
   const terminal = detectTerminal();
+  const artOpts = { opacity: effectiveOpacity, fit: effectiveFit };
   let backgroundOk = false;
   let didSomethingUseful = false;
 
@@ -244,7 +296,7 @@ export async function runArt({
     backgroundOk = await clearForTerminal(terminal, artPath);
     didSomethingUseful = backgroundOk;
   } else {
-    backgroundOk = await setForTerminal(terminal, artPath);
+    backgroundOk = await setForTerminal(terminal, artPath, artOpts);
     didSomethingUseful = backgroundOk;
   }
 
@@ -269,9 +321,10 @@ export async function runArt({
 /**
  * @param {string} terminal
  * @param {string} artPath
+ * @param {{ opacity?: number, fit?: "cover"|"contain"|"stretch" }} [artOpts]
  * @returns {Promise<boolean>}
  */
-async function setForTerminal(terminal, artPath) {
+async function setForTerminal(terminal, artPath, artOpts = {}) {
   if (terminal === "iterm2") {
     writeItermBackground(artPath);
     console.log(
@@ -297,7 +350,7 @@ async function setForTerminal(terminal, artPath) {
   if (terminal === "ghostty") {
     // Config write + SIGUSR2 (Ghostty 1.2+) / macOS ⌘⇧, fallback — no live OSC.
     return reportConfigResult(
-      setGhosttyBackground(artPath),
+      setGhosttyBackground(artPath, artOpts),
       "Ghostty",
       artPath
     );
@@ -309,7 +362,7 @@ async function setForTerminal(terminal, artPath) {
 
   if (terminal === "wezterm") {
     return reportConfigResult(
-      setWeztermBackground(artPath),
+      setWeztermBackground(artPath, artOpts),
       "WezTerm",
       artPath
     );
@@ -317,23 +370,31 @@ async function setForTerminal(terminal, artPath) {
 
   if (terminal === "contour") {
     return reportConfigResult(
-      setContourBackground(artPath),
+      setContourBackground(artPath, artOpts),
       "Contour",
       artPath
     );
   }
 
   if (terminal === "hyper") {
-    return reportConfigResult(setHyperBackground(artPath), "Hyper", artPath);
+    return reportConfigResult(
+      setHyperBackground(artPath, artOpts),
+      "Hyper",
+      artPath
+    );
   }
 
   if (terminal === "tabby") {
-    return reportConfigResult(setTabbyBackground(artPath), "Tabby", artPath);
+    return reportConfigResult(
+      setTabbyBackground(artPath, artOpts),
+      "Tabby",
+      artPath
+    );
   }
 
   if (terminal === "windows-terminal") {
     return reportConfigResult(
-      setWindowsTerminalBackground(artPath),
+      setWindowsTerminalBackground(artPath, artOpts),
       "Windows Terminal",
       artPath
     );

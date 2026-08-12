@@ -26,12 +26,19 @@ import {
   patchConfigBlockAfter,
 } from "./config-block.js";
 import { reloadGhosttyConfig } from "./ghostty-reload.js";
+import {
+  DEFAULT_ART_FIT,
+  DEFAULT_ART_OPACITY,
+  cssBackgroundSize,
+  weztermFitTokens,
+  windowsTerminalStretchMode,
+} from "./prefs.js";
 
 /**
  * Ghostty brand-art opacity (1.2+). Kept low so light dither art
  * does not wash out CLI text in dark mode. Range target ~0.25–0.30.
  */
-export const GHOSTTY_DEFAULT_OPACITY = 0.28;
+export const GHOSTTY_DEFAULT_OPACITY = DEFAULT_ART_OPACITY;
 
 /** WezTerm HSB brightness multiplier — dim wallpaper, readable text. */
 const WEZTERM_BRIGHTNESS = 0.18;
@@ -217,20 +224,21 @@ export function clearGhosttyArtFromConfig(content, opts = {}) {
  * Not live/OSC — apply via config write + SIGUSR2 / reload_config.
  * @param {string} content
  * @param {string} imagePath
- * @param {{ opacity?: number }} [opts]
+ * @param {{ opacity?: number, fit?: "cover"|"contain"|"stretch" }} [opts]
  * @returns {string}
  */
 export function patchGhosttyConfigContent(
   content,
   imagePath,
-  { opacity = GHOSTTY_DEFAULT_OPACITY } = {}
+  { opacity = GHOSTTY_DEFAULT_OPACITY, fit = DEFAULT_ART_FIT } = {}
 ) {
+  const fitValue = fit || DEFAULT_ART_FIT;
   const base = clearGhosttyArtFromConfig(content);
   return patchConfigBlock(base, GHOSTTY_BLOCK_BEGIN, GHOSTTY_BLOCK_END, [
     `background-image = ${imagePath}`,
     `background-image-opacity = ${opacity}`,
     "background-image-position = center",
-    "background-image-fit = cover",
+    `background-image-fit = ${fitValue}`,
     "background-image-repeat = false",
   ]);
 }
@@ -287,6 +295,7 @@ export function setGhosttyBackground(imagePath, opts = {}) {
     const previous = exists(configPath) ? read(configPath, "utf8") : "";
     const next = patchGhosttyConfigContent(previous, imagePath, {
       opacity: opts.opacity ?? GHOSTTY_DEFAULT_OPACITY,
+      fit: opts.fit ?? DEFAULT_ART_FIT,
     });
     // atomicWriteFile creates parent dirs when the file is missing.
     atomicWriteFile(configPath, next, opts);
@@ -430,25 +439,26 @@ export function resolveWeztermConfigPath(opts = {}) {
  * Pure WezTerm Lua patch. Uses `config.*` (config_builder style).
  * @param {string} content
  * @param {string} imagePath
- * @param {{ brightness?: number }} [opts]
+ * @param {{ brightness?: number, fit?: "cover"|"contain"|"stretch" }} [opts]
  * @returns {string}
  */
 export function patchWeztermConfigContent(
   content,
   imagePath,
-  { brightness = WEZTERM_BRIGHTNESS } = {}
+  { brightness = WEZTERM_BRIGHTNESS, fit = DEFAULT_ART_FIT } = {}
 ) {
+  const { width, height } = weztermFitTokens(fit || DEFAULT_ART_FIT);
   const body = [
     `-- Managed by alquimia art. Requires a \`config\` table (wezterm.config_builder()).`,
-    `-- Uses background Cover (fill terminal, preserve aspect; may crop) — not Contain/stretch.`,
+    `-- Fit: ${fit || DEFAULT_ART_FIT} → width/height '${width}' / '${height}'.`,
     `if config then`,
     `  config.window_background_image = nil`,
     `  config.window_background_image_hsb = nil`,
     `  config.background = {`,
     `    {`,
     `      source = { File = ${luaString(imagePath)} },`,
-    `      width = 'Cover',`,
-    `      height = 'Cover',`,
+    `      width = '${width}',`,
+    `      height = '${height}',`,
     `      horizontal_align = 'Center',`,
     `      vertical_align = 'Middle',`,
     `      repeat_x = 'NoRepeat',`,
@@ -502,6 +512,7 @@ export function setWeztermBackground(imagePath, opts = {}) {
     const previous = exists(configPath) ? read(configPath, "utf8") : "";
     const next = patchWeztermConfigContent(previous, imagePath, {
       brightness: opts.brightness ?? WEZTERM_BRIGHTNESS,
+      fit: opts.fit ?? DEFAULT_ART_FIT,
     });
     atomicWriteFile(configPath, next, opts);
     return {
@@ -779,11 +790,21 @@ export function resolveHyperConfigPath(opts = {}) {
  * @param {string} imagePath
  * @returns {string}
  */
-export function patchHyperConfigContent(content, imagePath) {
+/**
+ * @param {string} content
+ * @param {string} imagePath
+ * @param {{ fit?: "cover"|"contain"|"stretch" }} [opts]
+ */
+export function patchHyperConfigContent(
+  content,
+  imagePath,
+  { fit = DEFAULT_ART_FIT } = {}
+) {
   const fileUrl = pathToFileUrl(imagePath);
+  const size = cssBackgroundSize(fit || DEFAULT_ART_FIT);
   const cssBody = [
     CSS_BLOCK_BEGIN,
-    `.terms_terms { background: url(${fileUrl}) center / cover no-repeat; }`,
+    `.terms_terms { background: url(${fileUrl}) center / ${size} no-repeat; }`,
     `.terms_termGroup { background: rgba(0,0,0,${HYPER_SCRIM_ALPHA}) !important; }`,
     CSS_BLOCK_END,
   ];
@@ -845,7 +866,9 @@ export function setHyperBackground(imagePath, opts = {}) {
   const configPath = resolveHyperConfigPath(opts);
   try {
     const previous = exists(configPath) ? read(configPath, "utf8") : "";
-    const next = patchHyperConfigContent(previous, imagePath);
+    const next = patchHyperConfigContent(previous, imagePath, {
+      fit: opts.fit ?? DEFAULT_ART_FIT,
+    });
     atomicWriteFile(configPath, next, opts);
     return {
       ok: true,
@@ -919,13 +942,19 @@ export function tabbyConfigCandidates({
  * Patch Tabby appearance.css with marked CSS (YAML scalar).
  * @param {string} content
  * @param {string} imagePath
+ * @param {{ opacity?: number, fit?: "cover"|"contain"|"stretch" }} [opts]
  * @returns {string}
  */
-export function patchTabbyConfigContent(content, imagePath) {
+export function patchTabbyConfigContent(
+  content,
+  imagePath,
+  { opacity = TABBY_BG_OPACITY, fit = DEFAULT_ART_FIT } = {}
+) {
   const fileUrl = pathToFileUrl(imagePath);
+  const size = cssBackgroundSize(fit || DEFAULT_ART_FIT);
   const css = [
     CSS_BLOCK_BEGIN,
-    `.xterm-viewport { background-image: url("${fileUrl}"); background-repeat: no-repeat; background-size: cover; opacity: ${TABBY_BG_OPACITY}; z-index: 1; }`,
+    `.xterm-viewport { background-image: url("${fileUrl}"); background-repeat: no-repeat; background-size: ${size}; opacity: ${opacity}; z-index: 1; }`,
     CSS_BLOCK_END,
   ].join(" ");
 
@@ -1000,7 +1029,10 @@ export function setTabbyBackground(imagePath, opts = {}) {
   const configPath = candidates.find((p) => exists(p)) || candidates[0];
   try {
     const previous = exists(configPath) ? read(configPath, "utf8") : "";
-    const next = patchTabbyConfigContent(previous, imagePath);
+    const next = patchTabbyConfigContent(previous, imagePath, {
+      opacity: opts.opacity ?? TABBY_BG_OPACITY,
+      fit: opts.fit ?? DEFAULT_ART_FIT,
+    });
     atomicWriteFile(configPath, next, opts);
     return {
       ok: true,
@@ -1107,14 +1139,15 @@ export function windowsTerminalSettingsCandidates({
  * Pure JSONC-tolerant patch of profiles.defaults backgroundImage*.
  * @param {string} content
  * @param {string} imagePathWindows Windows-style or ms-appdata path
- * @param {{ opacity?: number }} [opts]
+ * @param {{ opacity?: number, fit?: "cover"|"contain"|"stretch" }} [opts]
  * @returns {string}
  */
 export function patchWindowsTerminalSettings(
   content,
   imagePathWindows,
-  { opacity = WT_OPACITY } = {}
+  { opacity = WT_OPACITY, fit = DEFAULT_ART_FIT } = {}
 ) {
+  const stretch = windowsTerminalStretchMode(fit || DEFAULT_ART_FIT);
   let text = content == null ? "" : String(content);
   if (!text.trim()) {
     return JSON.stringify(
@@ -1123,7 +1156,7 @@ export function patchWindowsTerminalSettings(
           defaults: {
             backgroundImage: imagePathWindows,
             backgroundImageOpacity: opacity,
-            backgroundImageStretchMode: "uniformToFill",
+            backgroundImageStretchMode: stretch,
           },
           list: [],
         },
@@ -1152,7 +1185,7 @@ export function patchWindowsTerminalSettings(
     const insert = [
       `"backgroundImage": ${JSON.stringify(imagePathWindows)}`,
       `"backgroundImageOpacity": ${opacity}`,
-      `"backgroundImageStretchMode": "uniformToFill"`,
+      `"backgroundImageStretchMode": ${JSON.stringify(stretch)}`,
     ].join(",\n            ");
     const newBody = body
       ? `${body.replace(/\s*$/, "")},\n            ${insert}\n        `
@@ -1169,7 +1202,9 @@ export function patchWindowsTerminalSettings(
       /("profiles"\s*:\s*\{)/,
       `$1\n        "defaults": {\n            "backgroundImage": ${JSON.stringify(
         imagePathWindows
-      )},\n            "backgroundImageOpacity": ${opacity},\n            "backgroundImageStretchMode": "uniformToFill"\n        },`
+      )},\n            "backgroundImageOpacity": ${opacity},\n            "backgroundImageStretchMode": ${JSON.stringify(
+        stretch
+      )}\n        },`
     );
   }
 
@@ -1260,6 +1295,7 @@ export function setWindowsTerminalBackground(imagePath, opts = {}) {
     const previous = read(configPath, "utf8");
     const next = patchWindowsTerminalSettings(previous, wtImage, {
       opacity: opts.opacity ?? WT_OPACITY,
+      fit: opts.fit ?? DEFAULT_ART_FIT,
     });
     atomicWriteFile(configPath, next, opts);
     return {

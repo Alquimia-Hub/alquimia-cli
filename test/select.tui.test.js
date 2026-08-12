@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { select } from "../src/select.js";
+import { filterItemIndices, select } from "../src/select.js";
 import {
   VisibleTerminal,
   createFakeStdin,
@@ -344,5 +344,114 @@ describe("select() TUI with fake TTY", () => {
     }).not.toThrow();
     stdin.emit("data", Buffer.from(KEY.enter));
     await expect(p).resolves.toBe(0);
+  });
+});
+
+describe("filterItemIndices", () => {
+  it("matches name/description case-insensitively", () => {
+    const items = ["Alpha", "Beta", "Gamma"];
+    expect(filterItemIndices(items, "")).toEqual([0, 1, 2]);
+    expect(filterItemIndices(items, "be")).toEqual([1]);
+    expect(
+      filterItemIndices(items, "pack", (_item, i) =>
+        i === 0 ? "Alpha pack ia" : items[i]
+      )
+    ).toEqual([0]);
+  });
+});
+
+describe("select() filterable TUI", () => {
+  it("shows Filtro chrome and filters as you type", async () => {
+    const labels = ["Terminal", "Agents", "Skills"];
+    const term = new VisibleTerminal(80);
+    const stdin = createFakeStdin();
+    const stdout = createFakeStdout(80, term);
+
+    const p = select(labels, {
+      stdin,
+      stdout,
+      filterable: true,
+      getFilterText: (item, index) =>
+        `${item} ${index === 1 ? "agentes de IA" : "otro"}`,
+      hint: "filter-hint",
+    });
+
+    const before = term.visibleText();
+    expect(before).toMatch(/Filtro:/);
+    expect(before).toContain("Terminal");
+    expect(before).toContain("Agents");
+
+    stdin.emit("data", Buffer.from("age"));
+    const mid = term.visibleText();
+    expect(mid).toMatch(/Filtro:.*age/i);
+    expect(mid).toContain("Agents");
+    expect(mid).not.toContain("Terminal");
+    expect(mid).not.toContain("Skills");
+
+    stdin.emit("data", Buffer.from(KEY.enter));
+    await expect(p).resolves.toBe(1); // original index of Agents
+  });
+
+  it("Backspace edits query; Esc clears then quits", async () => {
+    const labels = ["Uno", "Dos", "Tres"];
+    const term = new VisibleTerminal(80);
+    const stdin = createFakeStdin();
+    const stdout = createFakeStdout(80, term);
+
+    const p = select(labels, {
+      stdin,
+      stdout,
+      filterable: true,
+      hint: "h",
+    });
+
+    stdin.emit("data", Buffer.from("do"));
+    expect(term.visibleText()).toContain("Dos");
+    expect(term.visibleText()).not.toContain("Uno");
+
+    stdin.emit("data", Buffer.from(KEY.backspace));
+    // query "d" still matches Dos
+    expect(term.visibleText()).toContain("Dos");
+
+    stdin.emit("data", Buffer.from(KEY.esc)); // clear filter
+    const cleared = term.visibleText();
+    expect(cleared).toContain("Uno");
+    expect(cleared).toContain("Dos");
+    expect(cleared).toContain("Tres");
+
+    stdin.emit("data", Buffer.from(KEY.esc)); // quit
+    await expect(p).resolves.toBeNull();
+  });
+
+  it("Enter after filter opens original index (tools-style)", async () => {
+    const tools = [
+      { name: "Claude", blurb: "Anthropic agent" },
+      { name: "Codex", blurb: "OpenAI coding" },
+      { name: "Vitest", blurb: "test runner" },
+    ];
+    const labels = tools.map((t) => t.name);
+    const stdin = createFakeStdin();
+    const stdout = createFakeStdout(80);
+    const p = select(labels, {
+      stdin,
+      stdout,
+      filterable: true,
+      getFilterText: (_item, index) =>
+        `${tools[index].name} ${tools[index].blurb}`,
+    });
+    stdin.emit("data", Buffer.from("test"));
+    stdin.emit("data", Buffer.from(KEY.enter));
+    await expect(p).resolves.toBe(2);
+  });
+
+  it("arrows still navigate the filtered list", async () => {
+    const labels = ["Alpha", "Beta", "Gamma", "Alpine"];
+    const stdin = createFakeStdin();
+    const stdout = createFakeStdout(80);
+    const p = select(labels, { stdin, stdout, filterable: true });
+    stdin.emit("data", Buffer.from("al")); // Alpha + Alpine
+    stdin.emit("data", Buffer.from(KEY.down));
+    stdin.emit("data", Buffer.from(KEY.enter));
+    await expect(p).resolves.toBe(3); // Alpine
   });
 });

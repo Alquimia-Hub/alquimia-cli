@@ -1,0 +1,109 @@
+#compdef alquimia
+
+# Alquimia CLI zsh completion — install:
+#   alquimia completion zsh > ~/.zsh/completions/_alquimia
+#   # o: eval "$(alquimia completion zsh)"
+
+_alquimia() {
+  local -a commands
+  commands=(
+    'info:Qué es Alquimia y links'
+    'join:Menú para sumarte a la comunidad'
+    'events:Community calls'
+    'tools:Catálogo de tools'
+    'art:Fondo de terminal con brand art'
+    'doctor:Diagnóstico del entorno'
+    'open:Abrí una red en el navegador'
+    'update:Actualizá la CLI'
+    'completion:Imprimir script de completion'
+    'help:Ayuda'
+    'version:Versión instalada'
+  )
+
+  local -a global_opts
+  global_opts=(
+    '(-h --help)'{-h,--help}'[Ayuda]'
+    '(-v --version)'{-v,--version}'[Versión]'
+    '--json[Salida JSON]'
+    '--yes[Saltear confirmación de install]'
+    '-y[Saltear confirmación de install]'
+    '--no-banner[Ocultá el banner ASCII]'
+    '--no-interactive[Sin menú interactivo]'
+    '--no-update[Sin auto-update al arrancar]'
+    '--list[Solo listar (events/tools)]'
+    '--open[Abrir (events/art)]'
+    '--path[Path del brand art]'
+    '--clear[Sacar fondo de art]'
+    '--opacity[Opacidad 0..1 (art)]:opacity:(0.2 0.28 0.35 0.5 1)'
+    '--fit[Fit del fondo (art)]:fit:(cover contain stretch)'
+  )
+
+  local -a tool_sections
+  tool_sections=(terminal agents harnesses skills design testing)
+
+  local -a networks
+  networks=(web github twitter discord whatsapp site x gh wa)
+
+  local -a shells
+  shells=(zsh bash fish)
+
+  _arguments -C \
+    "${global_opts[@]}" \
+    '1:comando:->cmds' \
+    '*::arg:->args'
+
+  case $state in
+    cmds)
+      _describe -t commands 'comando' commands
+      ;;
+    args)
+      case $words[1] in
+        art)
+          _arguments \
+            '--clear[Sacar fondo]' \
+            '--open[Abrir PNG]' \
+            '--path[Imprimir path]' \
+            '--opacity[Opacidad 0..1]:opacity:(0.2 0.28 0.35 0.5 1)' \
+            '--fit[Fit]:fit:(cover contain stretch)' \
+            '1:accion:(clear)'
+          ;;
+        tools)
+          _arguments \
+            '--json[Salida JSON]' \
+            '--list[Solo listar]' \
+            '--yes[Saltear confirmación]' \
+            '-y[Saltear confirmación]' \
+            '--no-banner[Sin banner]' \
+            '--no-interactive[Sin menú]' \
+            "1:sección:(${tool_sections[*]})"
+          ;;
+        open|join)
+          _arguments \
+            '--json[Salida JSON]' \
+            "1:red:(${networks[*]})"
+          ;;
+        events)
+          _arguments \
+            '--json[Salida JSON]' \
+            '--list[Solo listar]' \
+            '--open[Abrir próxima call]' \
+            '--no-banner[Sin banner]' \
+            '--no-interactive[Sin menú]'
+          ;;
+        doctor)
+          _arguments \
+            '--json[Salida JSON]' \
+            '--no-banner[Sin banner]' \
+            '--no-update[Sin auto-update]'
+          ;;
+        completion)
+          _arguments "1:shell:(${shells[*]})"
+          ;;
+        info|help|version|update)
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_alquimia "$@"

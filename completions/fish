@@ -1,0 +1,36 @@
+# Alquimia CLI fish completion — install:
+#   alquimia completion fish > ~/.config/fish/completions/alquimia.fish
+#   # o: alquimia completion fish | source
+
+complete -c alquimia -f
+
+complete -c alquimia -n __fish_use_subcommand -a info -d 'Qué es Alquimia y links'
+complete -c alquimia -n __fish_use_subcommand -a join -d 'Menú para sumarte'
+complete -c alquimia -n __fish_use_subcommand -a events -d 'Community calls'
+complete -c alquimia -n __fish_use_subcommand -a tools -d 'Catálogo de tools'
+complete -c alquimia -n __fish_use_subcommand -a art -d 'Fondo de terminal con brand art'
+complete -c alquimia -n __fish_use_subcommand -a doctor -d 'Diagnóstico del entorno'
+complete -c alquimia -n __fish_use_subcommand -a open -d 'Abrí una red'
+complete -c alquimia -n __fish_use_subcommand -a update -d 'Actualizá la CLI'
+complete -c alquimia -n __fish_use_subcommand -a completion -d 'Imprimir script de completion'
+complete -c alquimia -n __fish_use_subcommand -a help -d 'Ayuda'
+complete -c alquimia -n __fish_use_subcommand -a version -d 'Versión'
+
+complete -c alquimia -s h -l help -d 'Ayuda'
+complete -c alquimia -s v -l version -d 'Versión'
+complete -c alquimia -l json -d 'Salida JSON'
+complete -c alquimia -l yes -s y -d 'Saltear confirmación de install'
+complete -c alquimia -l no-banner -d 'Ocultá el banner ASCII'
+complete -c alquimia -l no-interactive -d 'Sin menú interactivo'
+complete -c alquimia -l no-update -d 'Sin auto-update al arrancar'
+complete -c alquimia -l list -d 'Solo listar'
+complete -c alquimia -l open -d 'Abrir (events/art)'
+complete -c alquimia -l path -d 'Path del brand art'
+complete -c alquimia -l clear -d 'Sacar fondo de art'
+complete -c alquimia -l opacity -d 'Opacidad 0..1 (art)' -x -a '0.2 0.28 0.35 0.5 1'
+complete -c alquimia -l fit -d 'Fit del fondo (art)' -x -a 'cover contain stretch'
+
+complete -c alquimia -n '__fish_seen_subcommand_from tools' -a 'terminal agents harnesses skills design testing' -d 'Sección'
+complete -c alquimia -n '__fish_seen_subcommand_from open join' -a 'web github twitter discord whatsapp site x gh wa' -d 'Red'
+complete -c alquimia -n '__fish_seen_subcommand_from art' -a clear -d 'Sacar fondo'
+complete -c alquimia -n '__fish_seen_subcommand_from completion' -a 'zsh bash fish' -d 'Shell'

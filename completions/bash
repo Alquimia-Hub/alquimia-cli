@@ -1,0 +1,75 @@
+# Alquimia CLI bash completion — install:
+#   alquimia completion bash > ~/.local/share/bash-completion/completions/alquimia
+#   # o: eval "$(alquimia completion bash)"
+
+_alquimia_completions() {
+  local cur prev words cword
+  if declare -F _init_completion >/dev/null 2>&1; then
+    _init_completion || return
+  else
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+  fi
+
+  local commands="info join events tools art doctor open update completion help version"
+  local global_opts="--help -h --version -v --json --yes -y --no-banner --no-interactive --no-update --list --open --path --clear --opacity --fit"
+  local sections="terminal agents harnesses skills design testing"
+  local networks="web github twitter discord whatsapp site x gh wa"
+  local shells="zsh bash fish"
+  local fits="cover contain stretch"
+
+  local cmd=""
+  local i
+  for ((i = 1; i < COMP_CWORD; i++)); do
+    case "${COMP_WORDS[i]}" in
+      -*) ;;
+      *)
+        cmd="${COMP_WORDS[i]}"
+        break
+        ;;
+    esac
+  done
+
+  case "$prev" in
+    --opacity)
+      COMPREPLY=($(compgen -W "0.2 0.28 0.35 0.5 1" -- "$cur"))
+      return
+      ;;
+    --fit)
+      COMPREPLY=($(compgen -W "$fits" -- "$cur"))
+      return
+      ;;
+  esac
+
+  if [[ -z "$cmd" ]]; then
+    COMPREPLY=($(compgen -W "$commands $global_opts" -- "$cur"))
+    return
+  fi
+
+  case "$cmd" in
+    art)
+      COMPREPLY=($(compgen -W "--clear --open --path --opacity --fit clear $global_opts" -- "$cur"))
+      ;;
+    tools)
+      COMPREPLY=($(compgen -W "$sections --json --list --yes -y --no-banner --no-interactive $global_opts" -- "$cur"))
+      ;;
+    open|join)
+      COMPREPLY=($(compgen -W "$networks --json $global_opts" -- "$cur"))
+      ;;
+    events)
+      COMPREPLY=($(compgen -W "--json --list --open --no-banner --no-interactive $global_opts" -- "$cur"))
+      ;;
+    doctor)
+      COMPREPLY=($(compgen -W "--json --no-banner --no-update $global_opts" -- "$cur"))
+      ;;
+    completion)
+      COMPREPLY=($(compgen -W "$shells" -- "$cur"))
+      ;;
+    *)
+      COMPREPLY=($(compgen -W "$global_opts" -- "$cur"))
+      ;;
+  esac
+}
+
+complete -F _alquimia_completions alquimia

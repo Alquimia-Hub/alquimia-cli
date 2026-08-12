@@ -21,7 +21,7 @@ describe("CLI smoke — version", () => {
     const r = runCli(["version"]);
     expect(r.status).toBe(0);
     expect(r.stdout.trim()).toBe(pkg.version);
-    expect(pkg.version).toBe("0.5.13");
+    expect(pkg.version).toBe("0.5.14");
   });
 
   it("-v / --version match version command", () => {
@@ -198,5 +198,56 @@ describe("CLI smoke — invalid command (negative)", () => {
     const err = `${r.stderr}${r.stdout}`;
     expect(err).toMatch(/Comando desconocido/i);
     expect(err).toMatch(/definitely-not-a-command/);
+  });
+});
+
+describe("CLI smoke — doctor", () => {
+  it("doctor exits 0 and mentions Node / alquimia", () => {
+    const r = runCli(["doctor", "--no-update"]);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/Alquimia doctor/);
+    expect(r.stdout).toMatch(/Node/);
+    expect(r.stdout).toMatch(/0\.5\.14/);
+  });
+
+  it("doctor --json has expected keys", () => {
+    const r = runCli(["doctor", "--json", "--no-update"]);
+    expect(r.status).toBe(0);
+    const data = JSON.parse(r.stdout);
+    expect(data).toHaveProperty("node");
+    expect(data).toHaveProperty("alquimia");
+    expect(data).toHaveProperty("terminal");
+    expect(data).toHaveProperty("artPrefs");
+    expect(data).toHaveProperty("ghostty");
+    expect(data).toHaveProperty("autoUpdate");
+    expect(data.alquimia.version).toBe(pkg.version);
+  });
+});
+
+describe("CLI smoke — completion", () => {
+  it("completion zsh|bash|fish print scripts", () => {
+    for (const shell of ["zsh", "bash", "fish"]) {
+      const r = runCli(["completion", shell, "--no-update"]);
+      expect(r.status, shell).toBe(0);
+      expect(r.stdout.length, shell).toBeGreaterThan(50);
+      expect(r.stdout, shell).toMatch(/alquimia/i);
+    }
+  });
+
+  it("completion without shell is negative", () => {
+    const r = runCli(["completion", "--no-update"]);
+    expect(r.status).not.toBe(0);
+    expect(`${r.stderr}${r.stdout}`).toMatch(/zsh\|bash\|fish|Falta el shell/i);
+  });
+});
+
+describe("CLI smoke — help mentions new commands", () => {
+  it("help lists doctor and completion", () => {
+    const r = runCli(["help", "--no-update"]);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/\bdoctor\b/);
+    expect(r.stdout).toMatch(/\bcompletion\b/);
+    expect(r.stdout).toMatch(/--opacity/);
+    expect(r.stdout).toMatch(/--fit/);
   });
 });
