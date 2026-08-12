@@ -29,7 +29,7 @@ Comandos
   events   Calls de lun/mié 17:00 ARG; en TTY elegí con ↑↓ y Enter abre el evento en Discord
   tools    Catálogo de tools; en TTY: sección → tool → acción (abrir docs o instalar). Esc/q vuelve un nivel
   open     Abrí una red puntual en el navegador (`open discord`, `open x`, etc.)
-  art      Fondo de terminal con el brand art (iTerm2/Kitty); `--clear` / `clear` lo saca
+  art      Fondo de terminal con brand art (iTerm2/Kitty/Ghostty/WezTerm/…); `--clear` / `clear` lo saca
   update   Actualizá la CLI ahora (también se auto-actualiza en segundo plano al arrancar)
   help     Ayuda completa con opciones y alias
   version  Versión instalada de la CLI
@@ -205,6 +205,7 @@ ESM (`"type": "module"`), sin dependencias de runtime (Vitest solo en dev), lice
 
 ## Changelog
 
+- **0.5.10** — `alquimia art`: multi-terminal (iTerm2, Kitty, Ghostty, WezTerm, Contour, Tilix, Terminology, Hyper, Tabby, Windows Terminal). Config patchers con bloques `>>> alquimia-art <<<`, art persistido en `~/.local/share/alquimia/art.png`. Honest UX donde no hay API (Alacritty, Terminal.app, VS Code, GNOME, Konsole, …). Tests con temp HOME.
 - **0.5.9** — Auto-update silencioso al arrancar (check cacheado ~1h → cleanup global + `npm install -g` detachado). Evita `ENOTEMPTY` en Mac borrando `alquimia` / `.alquimia-*` bajo `npm root -g`. Flags/env: `--no-update`, `ALQUIMIA_NO_UPDATE`, skip en CI / sin TTY. Comando explícito `alquimia update`. Tests unitarios sin red.
 - **0.5.8** — `alquimia art`: fondo de terminal con brand art (iTerm2 / Kitty) + `--clear` / `--open` / `--path`.
 - **0.5.7** — Help: se quitó el bloque `Ejemplos` de la salida de ayuda. Fix: URLs de Discord scheduled-event de lunes y miércoles estaban intercambiadas.
@@ -218,8 +219,28 @@ MIT © Alquimia Hub
 
 ## Brand art
 
+Setear el fondo desde la CLI **no es universal**. `alquimia art` detecta la terminal y usa un mecanismo real (o dice que no puede).
+
+| Terminal | OS | Método | ¿Reload? |
+|---|---|---|---|
+| **iTerm2** | macOS | OSC 1337 `SetBackgroundImageFile` | No (live) |
+| **Kitty** | macOS/Linux | `kitty @ set-background-image` | No (remote control) |
+| **Ghostty** | macOS/Linux | Config `background-image` (+ opacity/fit/position), bloque `>>> alquimia-art <<<` | Sí — ⌘⇧, / Ctrl+Shift+, |
+| **WezTerm** | macOS/Linux | `~/.wezterm.lua` `window_background_image` (+ hsb) | Auto / Ctrl+Shift+R |
+| **Contour** | macOS/Linux | `contour.yml` `color_schemes.default.background_image` | Reiniciar ventana |
+| **Tilix** | Linux | `gsettings` `com.gexperts.Tilix.Settings background-image` | No (puede pedir transparencia en el profile) |
+| **Terminology** | Linux | `tybg` | No |
+| **Hyper** | macOS/Linux | `.hyper.js` CSS (`background: url(file://…)`) | Auto / reiniciar |
+| **Tabby** | macOS/Linux | `config.yaml` `appearance.css` | Reiniciar / Acrylic on |
+| **Windows Terminal** | Windows / WSL | `settings.json` `profiles.defaults.backgroundImage` | Guardar settings / nueva pestaña |
+
+**Sin soporte real (mensaje honesto + `--open`):** Alacritty (no hay wallpaper nativo), Apple Terminal.app, VS Code/Cursor integrated, GNOME Terminal/Ptyxis, Konsole (wallpaper vive en el color scheme; no lo tocamos), xterm/st/foot, tmux/screen solos.
+
+El PNG se copia a `~/.local/share/alquimia/art.png` para que paths en configs sobrevivan un `npm -g` update.
+
 ```bash
-alquimia art          # fondo en iTerm2 / Kitty
-alquimia art --clear  # sacar fondo
+alquimia art          # set fondo si la terminal lo permite
+alquimia art --clear  # clear (OSC / CLI / bloques gestionados)
 alquimia art --open   # abrir el PNG
+alquimia art --path   # imprimir ruta del asset bundledo
 ```
