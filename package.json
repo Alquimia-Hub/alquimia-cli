@@ -1,6 +1,6 @@
 {
   "name": "alquimia",
-  "version": "0.5.13",
+  "version": "0.5.14",
   "description": "CLI de la comunidad Alquimia — IA, automatización y productividad",
   "bin": {
     "alquimia": "bin/alquimia.js"
@@ -10,7 +10,8 @@
     "bin",
     "src",
     "scripts",
-    "assets"
+    "assets",
+    "completions"
   ],
   "scripts": {
     "start": "node bin/alquimia.js",

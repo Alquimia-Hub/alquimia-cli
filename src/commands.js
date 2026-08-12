@@ -27,13 +27,19 @@ export const commands = [
     name: "tools",
     usage: "tools [sección]",
     blurb:
-      "Catálogo de tools; en TTY: sección → tool → acción (abrir docs o instalar). Esc/q vuelve un nivel",
+      "Catálogo de tools; en TTY: sección → tool → acción (abrir docs o instalar). Escribí para filtrar; Esc limpia/vuelve",
   },
   {
     name: "art",
-    usage: "art [--clear|clear] [--open] [--path]",
+    usage: "art [--clear] [--opacity] [--fit] [--open] [--path]",
     blurb:
-      "Fondo de terminal con brand art (iTerm2/Kitty/Ghostty/Terminal.app/WezTerm/…); `--clear` lo saca, `--open` abre el PNG, `--path` imprime la ruta",
+      "Fondo de terminal con brand art; `--opacity`/`--fit` se guardan, `--clear` lo saca (mantiene prefs)",
+  },
+  {
+    name: "doctor",
+    usage: "doctor [--json]",
+    blurb:
+      "Diagnóstico: Node, binario, terminal/art, prefs, Ghostty, auto-update",
   },
   {
     name: "open",
@@ -46,6 +52,12 @@ export const commands = [
     usage: "update",
     blurb:
       "Actualizá la CLI ahora (también se auto-actualiza en segundo plano al arrancar)",
+  },
+  {
+    name: "completion",
+    usage: "completion <zsh|bash|fish>",
+    blurb:
+      "Imprimí el script de completion del shell (para eval o redirigir a un archivo)",
   },
   {
     name: "help",

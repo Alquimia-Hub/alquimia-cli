@@ -2,8 +2,9 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { renderBanner } from "./banner.js";
-import { runArt } from "./art.js";
+import { parseArtCliArgs, runArt } from "./art.js";
 import { commandNames, formatCommandsBlock } from "./commands.js";
+import { runCompletion } from "./completion.js";
 import {
   community,
   getNextCommunityCall,
@@ -14,6 +15,7 @@ import {
   resolveEventUrl,
   resolveLinkKey,
 } from "./community.js";
+import { runDoctor } from "./doctor.js";
 import { openUrl } from "./open-url.js";
 import { select } from "./select.js";
 import { closest } from "./suggest.js";
@@ -61,11 +63,14 @@ function helpText({ noBanner = false } = {}) {
     style.bold("Opciones"),
     pad("-h, --help", "Ayuda"),
     pad("-v, --version", "Versión"),
-    pad("--json", "Salida JSON (info, join, events, tools)"),
+    pad("--json", "Salida JSON (info, join, events, tools, doctor)"),
     pad("--yes", "Saltear confirmación de install (tools)"),
     pad("--no-banner", "Ocultá el banner ASCII"),
     pad("--no-interactive", "Sin menú interactivo (events / join / tools)"),
     pad("--path", "Imprimir path del brand art (art)"),
+    pad("--opacity <0..1>", "Opacidad del fondo (art; se guarda)"),
+    pad("--fit <mode>", "cover|contain|stretch (art; se guarda)"),
+    pad("--clear", "Sacar fondo (art; mantiene prefs)"),
     pad("--no-update", "Sin auto-update al arrancar"),
     "",
     style.bold("Redes para open / join"),
@@ -460,7 +465,8 @@ async function runEvents({
   await runEventsInteractive({ noBanner });
 }
 
-const TOOLS_HINT = "↑↓ · Enter · q para volver";
+const TOOLS_HINT = "↑↓ · Enter · escribí para filtrar · Esc limpia/vuelve";
+const TOOLS_HINT_SIMPLE = "↑↓ · Enter · Esc/q para volver";
 
 function toolsListBody(sectionFilter = null) {
   const sections = sectionFilter ? [sectionFilter] : toolSections;
@@ -610,7 +616,7 @@ async function confirmAndRunInstall(tool, command, { yes = false } = {}) {
 
   if (!yes) {
     const confirmIdx = await select(["Ejecutar", "Cancelar"], {
-      hint: TOOLS_HINT,
+      hint: TOOLS_HINT_SIMPLE,
       renderItem: (item, _index, selected) =>
         selected
           ? `${style.cyan("❯")} ${style.bold(item)}`
@@ -672,7 +678,7 @@ async function pickInstallWhere(tool, { yes = false } = {}) {
 
   while (true) {
     const whereIdx = await select(["Global", "En este proyecto"], {
-      hint: TOOLS_HINT,
+      hint: TOOLS_HINT_SIMPLE,
       renderItem: (item, index, selected) => {
         const detail =
           index === 0
@@ -727,7 +733,7 @@ async function pickInstallWhere(tool, { yes = false } = {}) {
       fallbackLabels.push("Volver");
       fallbackActions.push("back");
 
-      const fbIdx = await select(fallbackLabels, { hint: TOOLS_HINT });
+      const fbIdx = await select(fallbackLabels, { hint: TOOLS_HINT_SIMPLE });
       if (fbIdx == null || fallbackActions[fbIdx] === "back") {
         continue;
       }
@@ -800,7 +806,7 @@ async function pickToolAction(tool, { yes = false } = {}) {
     const actionIdx = await select(
       actions.map((a) => a.label),
       {
-        hint: TOOLS_HINT,
+        hint: TOOLS_HINT_SIMPLE,
         renderItem: (item, _index, selected) =>
           selected
             ? `${style.cyan("❯")} ${style.bold(item)}`
@@ -847,6 +853,11 @@ async function pickToolInSection(section, { yes = false } = {}) {
     const labels = tools.map((t) => t.name);
     const picked = await select(labels, {
       hint: TOOLS_HINT,
+      filterable: true,
+      getFilterText: (_item, index) => {
+        const tool = tools[index];
+        return `${tool.name} ${tool.blurb ?? ""} ${tool.id ?? ""}`;
+      },
       renderItem: (_item, index, selected) => {
         const tool = tools[index];
         const soon = Boolean(tool.comingSoon || !tool.url);
@@ -899,6 +910,11 @@ async function runToolsInteractive({
     const sectionLabels = toolSections.map((s) => s.name);
     const sectionIdx = await select(sectionLabels, {
       hint: TOOLS_HINT,
+      filterable: true,
+      getFilterText: (_item, index) => {
+        const s = toolSections[index];
+        return `${s.name} ${s.blurb ?? ""} ${s.id ?? ""}`;
+      },
       renderItem: (_item, index, selected) => {
         const s = toolSections[index];
         const name = style.bold(s.name);
@@ -1075,13 +1091,25 @@ export async function run(argv) {
   }
 
   if (cmd === "art") {
-    const clear =
-      flags.has("--clear") ||
-      rest.includes("--clear") ||
-      rest.includes("clear");
-    const open = flags.has("--open") || rest.includes("--open");
-    const pathOnly = flags.has("--path") || rest.includes("--path");
-    await runArt({ clear, open, pathOnly });
+    const artOpts = parseArtCliArgs(argv);
+    if (artOpts.errors.length) {
+      for (const err of artOpts.errors) {
+        console.error(style.red(err));
+      }
+      process.exitCode = 1;
+      return;
+    }
+    await runArt(artOpts);
+    return;
+  }
+
+  if (cmd === "doctor") {
+    runDoctor({ json });
+    return;
+  }
+
+  if (cmd === "completion") {
+    runCompletion(rest);
     return;
   }
 

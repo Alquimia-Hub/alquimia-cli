@@ -111,8 +111,39 @@ export function visualLineCount(text, columns) {
 }
 
 /**
+ * Case-insensitive substring filter over items.
+ * @param {string[]} items
+ * @param {string} query
+ * @param {(item: string, index: number) => string} [getFilterText]
+ * @returns {number[]} original indices that match
+ */
+export function filterItemIndices(items, query, getFilterText) {
+  const q = String(query || "")
+    .trim()
+    .toLowerCase();
+  if (!q) {
+    return items.map((_, i) => i);
+  }
+  const getText =
+    getFilterText ??
+    ((item) => String(item ?? ""));
+  const out = [];
+  for (let i = 0; i < items.length; i++) {
+    const hay = String(getText(items[i], i) ?? "").toLowerCase();
+    if (hay.includes(q)) out.push(i);
+  }
+  return out;
+}
+
+/**
  * Tiny raw-mode arrow selector (zero deps).
- * Returns the selected index, or `null` if the user cancels (q / Esc / Ctrl+C).
+ * Returns the selected index (into the original `items` array), or `null`
+ * if the user cancels (q / Esc / Ctrl+C — see filterable Esc behavior).
+ *
+ * When `filterable` is true:
+ * - printable chars (incl. q) append to the query; Backspace edits it
+ * - Esc clears the filter if non-empty, otherwise cancels
+ * - Ctrl+C always cancels; bare `q` is NOT special in filterable mode
  *
  * @param {string[]} items  Plain labels (one line each). Prefer no newlines.
  * @param {{
@@ -121,15 +152,23 @@ export function visualLineCount(text, columns) {
  *   renderItem?: (item: string, index: number, selected: boolean) => string,
  *   stdin?: NodeJS.ReadStream,
  *   stdout?: NodeJS.WriteStream,
+ *   filterable?: boolean,
+ *   getFilterText?: (item: string, index: number) => string,
+ *   filterLabel?: string,
  * }} [opts]
  * @returns {Promise<number|null>}
  */
 export function select(items, opts = {}) {
   const stdin = opts.stdin ?? input;
   const stdout = opts.stdout ?? output;
+  const filterable = Boolean(opts.filterable);
+  const filterLabel = opts.filterLabel ?? "Filtro";
+  const getFilterText = opts.getFilterText;
   const hint =
     opts.hint ??
-    "↑↓ para elegir · Enter para confirmar · q para salir";
+    (filterable
+      ? "↑↓ · Enter · escribí para filtrar · Esc limpia/sale"
+      : "↑↓ para elegir · Enter para confirmar · q para salir");
   const renderItem =
     opts.renderItem ??
     ((item, _index, selected) =>
@@ -145,10 +184,18 @@ export function select(items, opts = {}) {
     return Promise.resolve(null);
   }
 
+  let query = "";
+  let filtered = filterItemIndices(items, query, getFilterText);
   let index = Math.min(
     Math.max(opts.initialIndex ?? 0, 0),
-    items.length - 1
+    Math.max(filtered.length - 1, 0)
   );
+  // Map initialIndex (original) into filtered view when possible.
+  if (opts.initialIndex != null && filtered.length) {
+    const pos = filtered.indexOf(opts.initialIndex);
+    if (pos >= 0) index = pos;
+  }
+
   let lineCount = 0;
   let drawn = false;
 
@@ -170,6 +217,24 @@ export function select(items, opts = {}) {
     write(`\x1b[${lineCount}A\r${ERASE_DOWN}`);
   };
 
+  const refilter = () => {
+    const prevOriginal =
+      filtered.length > 0 && index >= 0 && index < filtered.length
+        ? filtered[index]
+        : null;
+    filtered = filterItemIndices(items, query, getFilterText);
+    if (filtered.length === 0) {
+      index = 0;
+      return;
+    }
+    if (prevOriginal != null) {
+      const pos = filtered.indexOf(prevOriginal);
+      index = pos >= 0 ? pos : 0;
+    } else {
+      index = Math.min(index, filtered.length - 1);
+    }
+  };
+
   const draw = () => {
     if (drawn) {
       clearDrawn();
@@ -177,7 +242,22 @@ export function select(items, opts = {}) {
       drawn = true;
     }
 
-    const rows = items.map((item, i) => renderItem(item, i, i === index));
+    const rows = [];
+    if (filterable) {
+      const q = query.length ? query : style.dim("(vacío)");
+      rows.push(`${style.dim(`${filterLabel}:`)} ${query.length ? style.cyan(query) : q}`);
+      rows.push("");
+    }
+
+    if (filtered.length === 0) {
+      rows.push(style.yellow("Sin resultados."));
+    } else {
+      for (let fi = 0; fi < filtered.length; fi++) {
+        const oi = filtered[fi];
+        rows.push(renderItem(items[oi], oi, fi === index));
+      }
+    }
+
     rows.push("");
     rows.push(style.dim(hint));
     const text = rows.join("\n");
@@ -227,27 +307,71 @@ export function select(items, opts = {}) {
         return;
       }
 
-      // Esc (alone) or q / Q
-      if (s === "\u001b" || s === "q" || s === "Q") {
+      // Esc (alone): clear filter if active, else cancel
+      if (s === "\u001b") {
+        if (filterable && query.length > 0) {
+          query = "";
+          refilter();
+          draw();
+          return;
+        }
+        cleanup(null);
+        return;
+      }
+
+      // q / Q cancel only when not filterable (filterable: q is a filter char).
+      if (!filterable && (s === "q" || s === "Q")) {
         cleanup(null);
         return;
       }
 
       // Enter / Return
       if (s === "\r" || s === "\n") {
-        cleanup(index);
+        if (filtered.length === 0) return;
+        cleanup(filtered[index]);
         return;
       }
 
       // CSI arrow sequences: ESC [ A/B  (also ESC O A/B on some terms)
       if (s === "\u001b[A" || s === "\u001bOA") {
-        index = (index - 1 + items.length) % items.length;
+        if (filtered.length === 0) return;
+        index = (index - 1 + filtered.length) % filtered.length;
         draw();
         return;
       }
       if (s === "\u001b[B" || s === "\u001bOB") {
-        index = (index + 1) % items.length;
+        if (filtered.length === 0) return;
+        index = (index + 1) % filtered.length;
         draw();
+        return;
+      }
+
+      if (filterable) {
+        // Backspace / Delete
+        if (s === "\x7f" || s === "\b") {
+          if (query.length > 0) {
+            query = query.slice(0, -1);
+            refilter();
+            draw();
+          }
+          return;
+        }
+
+        // Printable code points (incl. q) — skip other CSI/control.
+        if (s.length > 0 && !s.startsWith("\u001b")) {
+          let added = false;
+          for (const ch of s) {
+            const cp = ch.codePointAt(0);
+            if (cp >= 32 && cp !== 0x7f) {
+              query += ch;
+              added = true;
+            }
+          }
+          if (added) {
+            refilter();
+            draw();
+          }
+        }
       }
     };
 

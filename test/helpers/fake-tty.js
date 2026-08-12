@@ -187,4 +187,5 @@ export const KEY = {
   q: "q",
   esc: "\x1b",
   ctrlC: "\u0003",
+  backspace: "\x7f",
 };
