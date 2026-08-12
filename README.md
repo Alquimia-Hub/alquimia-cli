@@ -178,3 +178,12 @@ ESM (`"type": "module"`), sin dependencias de runtime (Vitest solo en dev), lice
 ## License
 
 MIT © Alquimia Hub
+
+
+## Brand art
+
+```bash
+alquimia art          # fondo en iTerm2 / Kitty
+alquimia art --clear  # sacar fondo
+alquimia art --open   # abrir el PNG
+```
