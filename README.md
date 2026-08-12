@@ -205,7 +205,7 @@ ESM (`"type": "module"`), sin dependencias de runtime (Vitest solo en dev), lice
 
 ## Changelog
 
-- **0.5.12** — Ghostty `alquimia art`: auto-reload tras escribir/limpiar config (`SIGUSR2` a procesos `ghostty` / `Ghostty.app/Contents/MacOS/ghostty`; en macOS, fallback AppleScript ⌘⇧, si hace falta). Mensajes: “Fondo aplicado/sacado (config + reload automático)” o hint manual. Opacity default `0.55` (mejor en dark mode). Tests con discovery/`kill` mockeados. Sin deps nuevas.
+- **0.5.12** — Ghostty `alquimia art`: auto-reload tras escribir/limpiar config (`SIGUSR2` / macOS ⌘⇧,). `--clear` **siempre** manda reload (aunque no haya bloque en el archivo) y limpia `background-image` huérfano hacia `~/.local/share/alquimia/art.png`. Opacity default `0.55`. **Terminal.app**: soporte por perfil `Alquimia` (bookmark via Swift + switch AppleScript; puede pedir Automatización/Accesibilidad). Tests mockeados; sin deps nuevas.
 - **0.5.11** — `alquimia art`: multi-terminal (iTerm2, Kitty, Ghostty, WezTerm, Contour, Tilix, Terminology, Hyper, Tabby, Windows Terminal). Ghostty: bloque `# BEGIN/END alquimia-art` con keys 1.2+ (`background-image`, opacity 0.35, position/fit/repeat); paths App Support + XDG + `GHOSTTY_CONFIG_PATH`; reload requerido (no OSC). Art en `~/.local/share/alquimia/art.png`. Honest UX donde no hay API. Tests con temp HOME.
 - **0.5.10** — Tests: cobertura Vitest ampliada (positivos / negativos / bordes) para `select`, smoke CLI y helpers de `community.js`.
 - **0.5.9** — Auto-update silencioso al arrancar (check cacheado ~1h → cleanup global + `npm install -g` detachado). Evita `ENOTEMPTY` en Mac borrando `alquimia` / `.alquimia-*` bajo `npm root -g`. Flags/env: `--no-update`, `ALQUIMIA_NO_UPDATE`, skip en CI / sin TTY. Comando explícito `alquimia update`. Tests unitarios sin red.
@@ -227,7 +227,8 @@ Setear el fondo desde la CLI **no es universal**. `alquimia art` detecta la term
 |---|---|---|---|
 | **iTerm2** | macOS | OSC 1337 `SetBackgroundImageFile` | No (live) |
 | **Kitty** | macOS/Linux | `kitty @ set-background-image` | No (remote control) |
-| **Ghostty** | macOS/Linux | Config write (`background-image` + opacity 0.55 / fit/position/repeat), bloque `# BEGIN/END alquimia-art` — **no OSC**; auto-reload vía **SIGUSR2** (Ghostty 1.2+) y fallback macOS ⌘⇧, (AppleScript; puede pedir Accesibilidad) | Auto cuando se puede; si no, menú o ⌘⇧, / Ctrl+Shift+, |
+| **Ghostty** | macOS/Linux | Config write (`background-image` + opacity 0.55 / fit/position/repeat), bloque `# BEGIN/END alquimia-art` — **no OSC**; auto-reload vía **SIGUSR2** (Ghostty 1.2+) y fallback macOS ⌘⇧, (AppleScript; puede pedir Accesibilidad). `--clear` siempre recarga aunque el archivo ya esté limpio | Auto cuando se puede; si no, menú o ⌘⇧, / Ctrl+Shift+, |
+| **Terminal.app** | macOS | Perfil `Alquimia` con `BackgroundImageBookmark` (helper Swift) + AppleScript `current settings` → perfil; `--clear` vuelve al perfil previo (state en `~/.local/share/alquimia/`). **No OSC**; puede pedir Automatización/Accesibilidad la 1ª vez | Switch de perfil (live) |
 | **WezTerm** | macOS/Linux | `~/.wezterm.lua` `window_background_image` (+ hsb) | Auto / Ctrl+Shift+R |
 | **Contour** | macOS/Linux | `contour.yml` `color_schemes.default.background_image` | Reiniciar ventana |
 | **Tilix** | Linux | `gsettings` `com.gexperts.Tilix.Settings background-image` | No (puede pedir transparencia en el profile) |
@@ -236,7 +237,9 @@ Setear el fondo desde la CLI **no es universal**. `alquimia art` detecta la term
 | **Tabby** | macOS/Linux | `config.yaml` `appearance.css` | Reiniciar / Acrylic on |
 | **Windows Terminal** | Windows / WSL | `settings.json` `profiles.defaults.backgroundImage` | Guardar settings / nueva pestaña |
 
-**Sin soporte real (mensaje honesto + `--open`):** Alacritty (no hay wallpaper nativo), Apple Terminal.app, VS Code/Cursor integrated, GNOME Terminal/Ptyxis, Konsole (wallpaper vive en el color scheme; no lo tocamos), xterm/st/foot, tmux/screen solos.
+**Sin soporte real (mensaje honesto + `--open`):** Alacritty (no hay wallpaper nativo), VS Code/Cursor integrated, GNOME Terminal/Ptyxis, Konsole (wallpaper vive en el color scheme; no lo tocamos), xterm/st/foot, tmux/screen solos.
+
+**Terminal.app (honesto):** no hay API OSC de fondo; el soporte es **por perfil**. Si falla el bookmark/Swift, `alquimia art --open` + Ajustes → Perfiles → Fondo. La 1ª automatización puede pedir permiso.
 
 El PNG se copia a `~/.local/share/alquimia/art.png` para que paths en configs sobrevivan un `npm -g` update.
 

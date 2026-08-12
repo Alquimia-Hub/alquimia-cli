@@ -24,6 +24,8 @@ import {
   clearTilixBackground,
   setTerminologyBackground,
   clearTerminologyBackground,
+  clearOrphanAlquimiaGhosttyKeys,
+  isAlquimiaGhosttyImagePath,
   // re-exports for tests / public API
   ghosttyConfigCandidates,
   resolveGhosttyConfigPath,
@@ -65,6 +67,15 @@ import {
   reloadGhosttyViaAppleScript,
   signalGhosttySigusr2,
 } from "./art/ghostty-reload.js";
+import {
+  ALQUIMIA_TERMINAL_PROFILE,
+  appleTerminalManualTip,
+  appleTerminalStatePath,
+  clearAppleTerminalBackground,
+  readAppleTerminalState,
+  setAppleTerminalBackground,
+  writeAppleTerminalState,
+} from "./art/apple-terminal.js";
 
 const ART_FILENAME = "art.png";
 
@@ -76,6 +87,8 @@ export {
   resolveGhosttyConfigPath,
   patchGhosttyConfigContent,
   clearGhosttyArtFromConfig,
+  clearOrphanAlquimiaGhosttyKeys,
+  isAlquimiaGhosttyImagePath,
   ghosttyReloadHint,
   patchWeztermConfigContent,
   clearWeztermArtFromConfig,
@@ -107,6 +120,13 @@ export {
   reloadGhosttyConfig,
   reloadGhosttyViaAppleScript,
   signalGhosttySigusr2,
+  ALQUIMIA_TERMINAL_PROFILE,
+  appleTerminalManualTip,
+  appleTerminalStatePath,
+  readAppleTerminalState,
+  writeAppleTerminalState,
+  setAppleTerminalBackground,
+  clearAppleTerminalBackground,
   setGhosttyBackground,
   clearGhosttyBackground,
   setWeztermBackground,
@@ -155,8 +175,6 @@ function printUnsupportedHelp(terminal, { clearing = false } = {}) {
       "Alacritty no tiene wallpaper nativo (solo forks). No inventamos claves de config.",
     konsole:
       "Konsole guarda el wallpaper en el color scheme; no lo tocamos (es invasivo).",
-    "apple-terminal":
-      "Terminal.app de Apple no permite setear fondo desde la CLI.",
     vscode:
       "La terminal integrada de VS Code / Cursor no soporta fondo vía CLI.",
     "gnome-terminal":
@@ -285,6 +303,10 @@ async function setForTerminal(terminal, artPath) {
     );
   }
 
+  if (terminal === "apple-terminal") {
+    return reportAppleTerminalSet(setAppleTerminalBackground(artPath), artPath);
+  }
+
   if (terminal === "wezterm") {
     return reportConfigResult(
       setWeztermBackground(artPath),
@@ -371,7 +393,14 @@ async function clearForTerminal(terminal, artPath) {
   }
 
   if (terminal === "ghostty") {
-    return reportClearResult(clearGhosttyBackground(), "Ghostty");
+    return reportClearResult(
+      clearGhosttyBackground({ artPath }),
+      "Ghostty"
+    );
+  }
+
+  if (terminal === "apple-terminal") {
+    return reportAppleTerminalClear(clearAppleTerminalBackground());
   }
 
   if (terminal === "wezterm") {
@@ -444,21 +473,59 @@ function reportConfigResult(result, name, artPath, { successExtra } = {}) {
 
 function reportClearResult(result, name) {
   if (result.ok) {
-    if (result.changed === false) {
-      console.log(
-        `${style.green("✓")} No había líneas de alquimia art en ${name}.`
-      );
-    } else {
-      const message = result.successMessage || `Fondo sacado de ${name}.`;
-      console.log(`${style.green("✓")} ${message}`);
-      if (result.configPath) {
-        console.log(style.dim(`Config: ${result.configPath}`));
-      }
-      if (result.reloadHint) console.log(style.dim(result.reloadHint));
+    const message =
+      result.successMessage ||
+      (result.changed === false
+        ? `No había líneas de alquimia art en ${name}.`
+        : `Fondo sacado de ${name}.`);
+    console.log(`${style.green("✓")} ${message}`);
+    if (result.configPath) {
+      console.log(style.dim(`Config: ${result.configPath}`));
     }
+    if (result.reloadHint) console.log(style.dim(result.reloadHint));
+    if (result.tip) console.log(style.dim(result.tip));
     return true;
   }
   console.error(style.red(`No pude sacar el fondo en ${name}.`));
   if (result.error) console.error(style.dim(result.error));
+  if (result.tip) console.error(style.dim(result.tip));
+  return false;
+}
+
+function reportAppleTerminalSet(result, artPath) {
+  if (result.ok) {
+    console.log(
+      `${style.green("✓")} ${
+        result.successMessage ||
+        "Fondo aplicado (perfil Terminal «Alquimia»)"
+      }`
+    );
+    if (result.tip) console.log(style.dim(result.tip));
+    if (result.profile) {
+      console.log(style.dim(`Perfil: ${result.profile}`));
+    }
+    return true;
+  }
+  console.error(style.red("No pude setear el fondo en Terminal.app."));
+  if (result.error) console.error(style.dim(result.error));
+  if (result.tip) console.error(style.dim(result.tip));
+  else console.error(style.dim(appleTerminalManualTip(artPath)));
+  console.log(style.dim(`Asset: ${artPath}`));
+  return false;
+}
+
+function reportAppleTerminalClear(result) {
+  if (result.ok) {
+    console.log(
+      `${style.green("✓")} ${
+        result.successMessage || "Fondo sacado de Terminal.app."
+      }`
+    );
+    if (result.tip) console.log(style.dim(result.tip));
+    return true;
+  }
+  console.error(style.red("No pude sacar el fondo en Terminal.app."));
+  if (result.error) console.error(style.dim(result.error));
+  if (result.tip) console.error(style.dim(result.tip));
   return false;
 }

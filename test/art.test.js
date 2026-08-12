@@ -8,7 +8,7 @@ import {
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   detectTerminal,
   ensurePersistedArt,
@@ -18,11 +18,19 @@ import {
   patchGhosttyConfigContent,
   setGhosttyBackground,
   clearGhosttyBackground,
+  clearOrphanAlquimiaGhosttyKeys,
+  isAlquimiaGhosttyImagePath,
   ghosttyReloadHint,
   findGhosttyPids,
   isGhosttyProcess,
   reloadGhosttyConfig,
   signalGhosttySigusr2,
+  ALQUIMIA_TERMINAL_PROFILE,
+  appleTerminalStatePath,
+  readAppleTerminalState,
+  writeAppleTerminalState,
+  setAppleTerminalBackground,
+  clearAppleTerminalBackground,
   patchWeztermConfigContent,
   clearWeztermArtFromConfig,
   setWeztermBackground,
@@ -78,12 +86,16 @@ describe("detectTerminal", () => {
     expect(detectTerminal({ TERMINOLOGY: "1" })).toBe("terminology");
   });
 
-  it("detects known-unsupported terminals by name", () => {
-    expect(detectTerminal({ ALACRITTY_SOCKET: "/tmp/a" })).toBe("alacritty");
-    expect(detectTerminal({ KONSOLE_VERSION: "22" })).toBe("konsole");
+  it("detects Apple Terminal.app", () => {
     expect(detectTerminal({ TERM_PROGRAM: "Apple_Terminal" })).toBe(
       "apple-terminal"
     );
+    expect(detectTerminal({ TERM_PROGRAM: "Terminal" })).toBe("apple-terminal");
+  });
+
+  it("detects known-unsupported terminals by name", () => {
+    expect(detectTerminal({ ALACRITTY_SOCKET: "/tmp/a" })).toBe("alacritty");
+    expect(detectTerminal({ KONSOLE_VERSION: "22" })).toBe("konsole");
     expect(detectTerminal({ TERM_PROGRAM: "vscode" })).toBe("vscode");
     expect(detectTerminal({ GNOME_TERMINAL_SCREEN: "1" })).toBe(
       "gnome-terminal"
@@ -276,6 +288,56 @@ describe("Ghostty config patcher", () => {
     }
   });
 
+  it("clear with no block still calls reload (live Ghostty may keep image)", () => {
+    const root = mkdtempSync(join(tmpdir(), "alquimia-art-"));
+    try {
+      const xdg = join(root, "xdg");
+      mkdirSync(join(xdg, "ghostty"), { recursive: true });
+      const configPath = join(xdg, "ghostty", "config");
+      writeFileSync(configPath, "theme = dark\n", "utf8");
+      let reloadCalls = 0;
+      const cleared = clearGhosttyBackground({
+        home: root,
+        platform: "linux",
+        xdgConfigHome: xdg,
+        env: {},
+        artPath: join(root, ".local", "share", "alquimia", "art.png"),
+        reloadConfig: () => {
+          reloadCalls += 1;
+          return { ok: true, method: "sigusr2", pids: [9] };
+        },
+      });
+      expect(reloadCalls).toBe(1);
+      expect(cleared.ok).toBe(true);
+      expect(cleared.changed).toBe(false);
+      expect(cleared.reloaded).toBe(true);
+      expect(cleared.successMessage).toMatch(/Nada en config; mandé reload/i);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("strips orphan alquimia background-image keys without managed block", () => {
+    const artPath = "/Users/x/.local/share/alquimia/art.png";
+    expect(isAlquimiaGhosttyImagePath(artPath)).toBe(true);
+    expect(isAlquimiaGhosttyImagePath("/tmp/other.png")).toBe(false);
+    const orphan = [
+      "font-size = 14",
+      `background-image = ${artPath}`,
+      "background-image-opacity = 0.55",
+      "background-image-position = center",
+      "theme = dark",
+      "",
+    ].join("\n");
+    const cleaned = clearOrphanAlquimiaGhosttyKeys(orphan, { artPath });
+    expect(cleaned).toContain("font-size = 14");
+    expect(cleaned).toContain("theme = dark");
+    expect(cleaned).not.toContain("background-image");
+    expect(clearGhosttyArtFromConfig(orphan, { artPath })).not.toContain(
+      "background-image"
+    );
+  });
+
   it("resolve honors GHOSTTY_CONFIG_PATH; else first existing (macOS App Support)", () => {
     const root = mkdtempSync(join(tmpdir(), "alquimia-art-"));
     try {
@@ -420,6 +482,82 @@ describe("Ghostty auto-reload (SIGUSR2 / AppleScript)", () => {
     });
     expect(failAfterSignal.ok).toBe(false);
     expect(failAfterSignal.pids).toEqual([7]);
+  });
+});
+
+describe("Apple Terminal.app profile helpers", () => {
+  it("reads/writes prior-profile state under ~/.local/share/alquimia", () => {
+    const root = mkdtempSync(join(tmpdir(), "alquimia-term-"));
+    try {
+      expect(readAppleTerminalState({ home: root })).toBeNull();
+      expect(appleTerminalStatePath({ home: root })).toBe(
+        join(root, ".local", "share", "alquimia", "apple-terminal-state.json")
+      );
+      writeAppleTerminalState(
+        { priorProfile: "Basic", active: true, profile: ALQUIMIA_TERMINAL_PROFILE },
+        { home: root }
+      );
+      expect(readAppleTerminalState({ home: root })).toEqual({
+        priorProfile: "Basic",
+        active: true,
+        profile: "Alquimia",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("set switches to Alquimia and clear restores prior (mocked osascript)", () => {
+    const root = mkdtempSync(join(tmpdir(), "alquimia-term-"));
+    try {
+      const artPath = join(root, ".local", "share", "alquimia", "art.png");
+      mkdirSync(dirname(artPath), { recursive: true });
+      writeFileSync(artPath, "png", "utf8");
+
+      const set = setAppleTerminalBackground(artPath, {
+        home: root,
+        platform: "darwin",
+        getFrontProfile: () => ({ ok: true, name: "Basic" }),
+        profileExists: () => ({ ok: true, exists: true }),
+        ensureProfile: () => ({
+          ok: true,
+          terminalFile: join(root, "Alquimia.terminal"),
+          wrotePrefs: true,
+        }),
+        importProfile: () => ({ ok: true }),
+        switchProfile: (name) => ({ ok: name === "Alquimia" }),
+        sleepMs: () => {},
+      });
+      expect(set.ok).toBe(true);
+      expect(set.profile).toBe("Alquimia");
+      expect(set.priorProfile).toBe("Basic");
+      expect(set.successMessage).toMatch(/perfil Terminal/i);
+      expect(readAppleTerminalState({ home: root }).priorProfile).toBe("Basic");
+
+      const cleared = clearAppleTerminalBackground({
+        home: root,
+        platform: "darwin",
+        getFrontProfile: () => ({ ok: true, name: "Alquimia" }),
+        switchProfile: (name) => ({ ok: name === "Basic" }),
+      });
+      expect(cleared.ok).toBe(true);
+      expect(cleared.changed).toBe(true);
+      expect(cleared.successMessage).toMatch(/perfil «Basic»/);
+      expect(readAppleTerminalState({ home: root }).active).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("set on non-darwin fails honestly without calling osascript", () => {
+    const result = setAppleTerminalBackground("/tmp/art.png", {
+      platform: "linux",
+      ensureProfile: () => {
+        throw new Error("should not run");
+      },
+    });
+    expect(result.ok).toBe(false);
+    expect(result.tip).toMatch(/perfil/i);
   });
 });
 

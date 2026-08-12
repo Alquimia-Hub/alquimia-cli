@@ -83,7 +83,11 @@ export function detectTerminal(env = process.env) {
     return "konsole";
   }
 
-  if (termProgram === "Apple_Terminal") {
+  if (
+    termProgram === "Apple_Terminal" ||
+    termProgramLower === "apple_terminal" ||
+    termProgramLower === "terminal"
+  ) {
     return "apple-terminal";
   }
 
@@ -137,5 +141,10 @@ export const SUPPORTED_TERMINALS = [
     id: "windows-terminal",
     name: "Windows Terminal",
     method: "settings.json backgroundImage",
+  },
+  {
+    id: "apple-terminal",
+    name: "Terminal.app",
+    method: "perfil Alquimia + AppleScript (bookmark)",
   },
 ];

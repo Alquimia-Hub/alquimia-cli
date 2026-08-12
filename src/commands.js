@@ -33,7 +33,7 @@ export const commands = [
     name: "art",
     usage: "art [--clear|clear] [--open] [--path]",
     blurb:
-      "Fondo de terminal con brand art (iTerm2/Kitty/Ghostty/WezTerm/Contour/…); `--clear` lo saca, `--open` abre el PNG, `--path` imprime la ruta",
+      "Fondo de terminal con brand art (iTerm2/Kitty/Ghostty/Terminal.app/WezTerm/…); `--clear` lo saca, `--open` abre el PNG, `--path` imprime la ruta",
   },
   {
     name: "open",

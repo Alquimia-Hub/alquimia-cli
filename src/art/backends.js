@@ -131,15 +131,77 @@ export function resolveGhosttyConfigPath(opts = {}) {
 }
 
 /**
- * Strip all known Ghostty alquimia-art formats (current + legacy).
+ * True when a background-image value points at alquimia brand art.
+ * @param {string} value
+ * @param {string} [artPath]
+ * @returns {boolean}
+ */
+export function isAlquimiaGhosttyImagePath(value, artPath) {
+  const v = String(value || "").trim().replace(/^["']|["']$/g, "");
+  if (!v) return false;
+  if (artPath && v === String(artPath)) return true;
+  if (/[\\/]\.local[\\/]share[\\/]alquimia[\\/]art\.png$/i.test(v)) return true;
+  if (/[\\/]alquimia[\\/]art\.png$/i.test(v)) return true;
+  if (/alquimia-art\.png$/i.test(v)) return true;
+  return false;
+}
+
+/**
+ * Strip orphan `background-image` (+ companion keys) pointing at alquimia art
+ * when the managed block was already removed or never written.
  * @param {string} content
+ * @param {{ artPath?: string }} [opts]
  * @returns {string}
  */
-export function clearGhosttyArtFromConfig(content) {
+export function clearOrphanAlquimiaGhosttyKeys(content, { artPath } = {}) {
+  const text = content == null ? "" : String(content);
+  const lines = text.split(/\r?\n/);
+  let hasAlquimiaBg = false;
+  for (const line of lines) {
+    const m = line.match(/^\s*background-image\s*=\s*(.*)$/i);
+    if (m && isAlquimiaGhosttyImagePath(m[1], artPath)) {
+      hasAlquimiaBg = true;
+      break;
+    }
+  }
+  if (!hasAlquimiaBg) return text;
+
+  const out = [];
+  for (const line of lines) {
+    const m = line.match(/^\s*([A-Za-z0-9-]+)\s*=\s*(.*)$/);
+    if (m) {
+      const key = m[1].toLowerCase();
+      const val = m[2];
+      if (key === "background-image" && isAlquimiaGhosttyImagePath(val, artPath)) {
+        continue;
+      }
+      // Companion keys from our managed block / partial clears.
+      if (
+        key === "background-image-opacity" ||
+        key === "background-image-position" ||
+        key === "background-image-fit" ||
+        key === "background-image-repeat"
+      ) {
+        continue;
+      }
+    }
+    out.push(line);
+  }
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").replace(/\n+$/, "\n");
+}
+
+/**
+ * Strip all known Ghostty alquimia-art formats (current + legacy + orphans).
+ * @param {string} content
+ * @param {{ artPath?: string }} [opts]
+ * @returns {string}
+ */
+export function clearGhosttyArtFromConfig(content, opts = {}) {
   let base = clearLegacyGhosttyMarkers(content == null ? "" : String(content));
   base = clearConfigBlock(base, GHOSTTY_BLOCK_BEGIN, GHOSTTY_BLOCK_END);
   // Prior PR used >>> / <<< markers on Ghostty configs.
   base = clearConfigBlock(base, BLOCK_BEGIN, BLOCK_END);
+  base = clearOrphanAlquimiaGhosttyKeys(base, opts);
   return base;
 }
 
@@ -243,66 +305,71 @@ export function setGhosttyBackground(imagePath, opts = {}) {
 }
 
 /**
+ * Clear Ghostty art from all candidate configs, then always try SIGUSR2 reload.
+ * Ghostty keeps background-image in memory until config reload — even when the
+ * file already has no managed block.
  * @param {object} [opts]
  */
 export function clearGhosttyBackground(opts = {}) {
   const exists = opts.existsSync ?? fsExistsSync;
   const read = opts.readFileSync ?? fsReadFileSync;
   const candidates = ghosttyConfigCandidates(opts);
-  const targets = candidates.filter((p) => {
-    if (!exists(p)) return false;
-    try {
-      return hasGhosttyArtMarker(read(p, "utf8"));
-    } catch {
-      return false;
-    }
-  });
-
-  if (targets.length === 0) {
-    return {
-      ok: true,
-      configPath: candidates.find((p) => exists(p)) || null,
-      changed: false,
-      needsReload: false,
-      reloaded: false,
-    };
-  }
+  // Scan every existing candidate (markers, orphans, or clean) so set/clear
+  // path resolution cannot diverge when the block was already removed.
+  const existing = candidates.filter((p) => exists(p));
 
   try {
     let changed = false;
-    let last = targets[0];
-    for (const configPath of targets) {
+    let last = existing[0] || null;
+    for (const configPath of existing) {
       last = configPath;
       const previous = read(configPath, "utf8");
-      const next = clearGhosttyArtFromConfig(previous);
+      const next = clearGhosttyArtFromConfig(previous, {
+        artPath: opts.artPath,
+      });
       if (next !== previous) {
         atomicWriteFile(configPath, next, opts);
         changed = true;
       }
     }
-    if (!changed) {
+
+    // Always reload: live Ghostty may still show a previous background-image.
+    const reload = ghosttyPostWriteReload(opts);
+
+    if (changed) {
+      return {
+        ok: true,
+        configPath: last,
+        changed: true,
+        ...reload,
+        successMessage: reload.reloaded
+          ? "Fondo sacado (config + reload automático)"
+          : "Fondo sacado de Ghostty.",
+      };
+    }
+
+    if (reload.reloaded) {
       return {
         ok: true,
         configPath: last,
         changed: false,
-        needsReload: false,
-        reloaded: false,
+        ...reload,
+        successMessage:
+          "Nada en config; mandé reload por si quedaba en memoria",
       };
     }
-    const reload = ghosttyPostWriteReload(opts);
+
     return {
       ok: true,
       configPath: last,
-      changed: true,
+      changed: false,
       ...reload,
-      successMessage: reload.reloaded
-        ? "Fondo sacado (config + reload automático)"
-        : "Fondo sacado de Ghostty.",
+      successMessage: "No había líneas de alquimia art en Ghostty.",
     };
   } catch (err) {
     return {
       ok: false,
-      configPath: targets[0] || null,
+      configPath: existing[0] || null,
       changed: false,
       error: err instanceof Error ? err.message : String(err),
     };
