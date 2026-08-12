@@ -25,9 +25,13 @@ import {
   patchConfigBlock,
   patchConfigBlockAfter,
 } from "./config-block.js";
+import { reloadGhosttyConfig } from "./ghostty-reload.js";
 
-/** Readable default for CLI brand art (Ghostty 1.2+). */
-export const GHOSTTY_DEFAULT_OPACITY = 0.35;
+/**
+ * Readable default for CLI brand art (Ghostty 1.2+).
+ * Raised from 0.35 so white-on-black dither is visible in dark mode.
+ */
+export const GHOSTTY_DEFAULT_OPACITY = 0.55;
 
 const WEZTERM_BRIGHTNESS = 0.25;
 const CONTOUR_OPACITY = 0.25;
@@ -127,21 +131,83 @@ export function resolveGhosttyConfigPath(opts = {}) {
 }
 
 /**
- * Strip all known Ghostty alquimia-art formats (current + legacy).
+ * True when a background-image value points at alquimia brand art.
+ * @param {string} value
+ * @param {string} [artPath]
+ * @returns {boolean}
+ */
+export function isAlquimiaGhosttyImagePath(value, artPath) {
+  const v = String(value || "").trim().replace(/^["']|["']$/g, "");
+  if (!v) return false;
+  if (artPath && v === String(artPath)) return true;
+  if (/[\\/]\.local[\\/]share[\\/]alquimia[\\/]art\.png$/i.test(v)) return true;
+  if (/[\\/]alquimia[\\/]art\.png$/i.test(v)) return true;
+  if (/alquimia-art\.png$/i.test(v)) return true;
+  return false;
+}
+
+/**
+ * Strip orphan `background-image` (+ companion keys) pointing at alquimia art
+ * when the managed block was already removed or never written.
  * @param {string} content
+ * @param {{ artPath?: string }} [opts]
  * @returns {string}
  */
-export function clearGhosttyArtFromConfig(content) {
+export function clearOrphanAlquimiaGhosttyKeys(content, { artPath } = {}) {
+  const text = content == null ? "" : String(content);
+  const lines = text.split(/\r?\n/);
+  let hasAlquimiaBg = false;
+  for (const line of lines) {
+    const m = line.match(/^\s*background-image\s*=\s*(.*)$/i);
+    if (m && isAlquimiaGhosttyImagePath(m[1], artPath)) {
+      hasAlquimiaBg = true;
+      break;
+    }
+  }
+  if (!hasAlquimiaBg) return text;
+
+  const out = [];
+  for (const line of lines) {
+    const m = line.match(/^\s*([A-Za-z0-9-]+)\s*=\s*(.*)$/);
+    if (m) {
+      const key = m[1].toLowerCase();
+      const val = m[2];
+      if (key === "background-image" && isAlquimiaGhosttyImagePath(val, artPath)) {
+        continue;
+      }
+      // Companion keys from our managed block / partial clears.
+      if (
+        key === "background-image-opacity" ||
+        key === "background-image-position" ||
+        key === "background-image-fit" ||
+        key === "background-image-repeat"
+      ) {
+        continue;
+      }
+    }
+    out.push(line);
+  }
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").replace(/\n+$/, "\n");
+}
+
+/**
+ * Strip all known Ghostty alquimia-art formats (current + legacy + orphans).
+ * @param {string} content
+ * @param {{ artPath?: string }} [opts]
+ * @returns {string}
+ */
+export function clearGhosttyArtFromConfig(content, opts = {}) {
   let base = clearLegacyGhosttyMarkers(content == null ? "" : String(content));
   base = clearConfigBlock(base, GHOSTTY_BLOCK_BEGIN, GHOSTTY_BLOCK_END);
   // Prior PR used >>> / <<< markers on Ghostty configs.
   base = clearConfigBlock(base, BLOCK_BEGIN, BLOCK_END);
+  base = clearOrphanAlquimiaGhosttyKeys(base, opts);
   return base;
 }
 
 /**
  * Idempotent Ghostty config patch (Ghostty ≥ 1.2.0 keys).
- * Not live/OSC — user must reload Ghostty config after write.
+ * Not live/OSC — apply via config write + SIGUSR2 / reload_config.
  * @param {string} content
  * @param {string} imagePath
  * @param {{ opacity?: number }} [opts]
@@ -165,9 +231,41 @@ export function patchGhosttyConfigContent(
 export function ghosttyReloadHint(osPlatform = platform()) {
   // Ghostty has no live OSC background path — config write + reload only.
   if (osPlatform === "darwin") {
-    return "Ghostty no aplica el fondo en vivo: recargá la config (menú o ⌘⇧,) o reiniciá Ghostty.";
+    return "No pude recargar Ghostty solo: recargá la config (menú o ⌘⇧,) o reiniciá. En Mac, el fallback AppleScript puede pedir Accesibilidad.";
   }
-  return "Ghostty no aplica el fondo en vivo: recargá la config (menú o Ctrl+Shift+,) o reiniciá Ghostty.";
+  return "No pude recargar Ghostty solo: recargá la config (menú o Ctrl+Shift+,) o reiniciá Ghostty.";
+}
+
+/**
+ * After a successful Ghostty config write/clear, try SIGUSR2 (+ macOS AppleScript).
+ * @param {object} opts
+ * @returns {{ reloaded: boolean, reloadMethod: string|null, reloadHint?: string, needsReload: boolean }}
+ */
+function ghosttyPostWriteReload(opts = {}) {
+  const plat = opts.platform ?? platform();
+  const reloadFn = opts.reloadConfig ?? reloadGhosttyConfig;
+  const reload = reloadFn({
+    platform: plat,
+    spawnSync: opts.spawnSync,
+    kill: opts.kill,
+    findPids: opts.findPids,
+    signalPids: opts.signalPids,
+    appleScriptReload: opts.appleScriptReload,
+    psOutput: opts.psOutput,
+  });
+  if (reload.ok) {
+    return {
+      reloaded: true,
+      reloadMethod: reload.method,
+      needsReload: false,
+    };
+  }
+  return {
+    reloaded: false,
+    reloadMethod: null,
+    needsReload: true,
+    reloadHint: ghosttyReloadHint(plat),
+  };
 }
 
 /**
@@ -185,11 +283,17 @@ export function setGhosttyBackground(imagePath, opts = {}) {
     });
     // atomicWriteFile creates parent dirs when the file is missing.
     atomicWriteFile(configPath, next, opts);
+    const reload = ghosttyPostWriteReload(opts);
     return {
       ok: true,
       configPath,
-      needsReload: true,
-      reloadHint: ghosttyReloadHint(opts.platform ?? platform()),
+      ...reload,
+      successMessage: reload.reloaded
+        ? "Fondo aplicado (config + reload automático)"
+        : "Fondo escrito para Ghostty (no es universal en todas las terminales).",
+      successExtra: reload.reloaded
+        ? undefined
+        : "Se escribió la config (no es OSC en vivo). Recargá Ghostty para ver el fondo.",
     };
   } catch (err) {
     return {
@@ -201,55 +305,73 @@ export function setGhosttyBackground(imagePath, opts = {}) {
 }
 
 /**
+ * Clear Ghostty art from all candidate configs, then always try SIGUSR2 reload.
+ * Ghostty keeps background-image in memory until config reload — even when the
+ * file already has no managed block.
  * @param {object} [opts]
  */
 export function clearGhosttyBackground(opts = {}) {
   const exists = opts.existsSync ?? fsExistsSync;
   const read = opts.readFileSync ?? fsReadFileSync;
   const candidates = ghosttyConfigCandidates(opts);
-  const targets = candidates.filter((p) => {
-    if (!exists(p)) return false;
-    try {
-      return hasGhosttyArtMarker(read(p, "utf8"));
-    } catch {
-      return false;
-    }
-  });
-
-  if (targets.length === 0) {
-    return {
-      ok: true,
-      configPath: candidates.find((p) => exists(p)) || null,
-      changed: false,
-      needsReload: false,
-    };
-  }
+  // Scan every existing candidate (markers, orphans, or clean) so set/clear
+  // path resolution cannot diverge when the block was already removed.
+  const existing = candidates.filter((p) => exists(p));
 
   try {
     let changed = false;
-    let last = targets[0];
-    for (const configPath of targets) {
+    let last = existing[0] || null;
+    for (const configPath of existing) {
       last = configPath;
       const previous = read(configPath, "utf8");
-      const next = clearGhosttyArtFromConfig(previous);
+      const next = clearGhosttyArtFromConfig(previous, {
+        artPath: opts.artPath,
+      });
       if (next !== previous) {
         atomicWriteFile(configPath, next, opts);
         changed = true;
       }
     }
+
+    // Always reload: live Ghostty may still show a previous background-image.
+    const reload = ghosttyPostWriteReload(opts);
+
+    if (changed) {
+      return {
+        ok: true,
+        configPath: last,
+        changed: true,
+        ...reload,
+        successMessage: reload.reloaded
+          ? "Fondo sacado (config + reload automático)"
+          : "Fondo sacado de Ghostty.",
+      };
+    }
+
+    if (reload.reloaded) {
+      return {
+        ok: true,
+        configPath: last,
+        changed: false,
+        ...reload,
+        successMessage:
+          "Nada en config; mandé reload por si quedaba en memoria",
+      };
+    }
+
     return {
       ok: true,
       configPath: last,
-      changed,
-      needsReload: changed,
-      reloadHint: changed
-        ? ghosttyReloadHint(opts.platform ?? platform())
-        : undefined,
+      changed: false,
+      ...reload,
+      successMessage:
+        "Nada en config de alquimia art; no pude auto-reload (¿Ghostty corriendo?).",
+      reloadHint: reload.reloadHint || ghosttyReloadHint(opts.platform ?? platform()),
     };
   } catch (err) {
     return {
       ok: false,
-      configPath: targets[0] || null,
+      configPath: existing[0] || null,
       changed: false,
       error: err instanceof Error ? err.message : String(err),
     };

@@ -8,7 +8,7 @@ import {
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   detectTerminal,
   ensurePersistedArt,
@@ -18,7 +18,19 @@ import {
   patchGhosttyConfigContent,
   setGhosttyBackground,
   clearGhosttyBackground,
+  clearOrphanAlquimiaGhosttyKeys,
+  isAlquimiaGhosttyImagePath,
   ghosttyReloadHint,
+  findGhosttyPids,
+  isGhosttyProcess,
+  reloadGhosttyConfig,
+  signalGhosttySigusr2,
+  ALQUIMIA_TERMINAL_PROFILE,
+  appleTerminalStatePath,
+  readAppleTerminalState,
+  writeAppleTerminalState,
+  setAppleTerminalBackground,
+  clearAppleTerminalBackground,
   patchWeztermConfigContent,
   clearWeztermArtFromConfig,
   setWeztermBackground,
@@ -74,12 +86,16 @@ describe("detectTerminal", () => {
     expect(detectTerminal({ TERMINOLOGY: "1" })).toBe("terminology");
   });
 
-  it("detects known-unsupported terminals by name", () => {
-    expect(detectTerminal({ ALACRITTY_SOCKET: "/tmp/a" })).toBe("alacritty");
-    expect(detectTerminal({ KONSOLE_VERSION: "22" })).toBe("konsole");
+  it("detects Apple Terminal.app", () => {
     expect(detectTerminal({ TERM_PROGRAM: "Apple_Terminal" })).toBe(
       "apple-terminal"
     );
+    expect(detectTerminal({ TERM_PROGRAM: "Terminal" })).toBe("apple-terminal");
+  });
+
+  it("detects known-unsupported terminals by name", () => {
+    expect(detectTerminal({ ALACRITTY_SOCKET: "/tmp/a" })).toBe("alacritty");
+    expect(detectTerminal({ KONSOLE_VERSION: "22" })).toBe("konsole");
     expect(detectTerminal({ TERM_PROGRAM: "vscode" })).toBe("vscode");
     expect(detectTerminal({ GNOME_TERMINAL_SCREEN: "1" })).toBe(
       "gnome-terminal"
@@ -167,12 +183,12 @@ describe("Ghostty config patcher", () => {
   });
 
   it("patches with # BEGIN/END alquimia-art and Ghostty 1.2 keys", () => {
-    expect(GHOSTTY_DEFAULT_OPACITY).toBe(0.35);
+    expect(GHOSTTY_DEFAULT_OPACITY).toBe(0.55);
     const next = patchGhosttyConfigContent("theme = dark\n", art);
     expect(next).toContain(GHOSTTY_BLOCK_BEGIN);
     expect(next).toContain(GHOSTTY_BLOCK_END);
     expect(next).toContain(`background-image = ${art}`);
-    expect(next).toContain("background-image-opacity = 0.35");
+    expect(next).toContain("background-image-opacity = 0.55");
     expect(next).toContain("background-image-position = center");
     expect(next).toContain("background-image-fit = contain");
     expect(next).toContain("background-image-repeat = false");
@@ -213,23 +229,113 @@ describe("Ghostty config patcher", () => {
         platform: "linux",
         xdgConfigHome: xdg,
         env: {},
+        // No real Ghostty in CI — force reload failure path.
+        reloadConfig: () => ({ ok: false, method: null, pids: [] }),
       };
       const set = setGhosttyBackground(art, opts);
       expect(set.ok).toBe(true);
       expect(existsSync(set.configPath)).toBe(true);
       expect(set.needsReload).toBe(true);
+      expect(set.reloaded).toBe(false);
+      expect(set.reloadHint).toMatch(/recargá la config/i);
       const text = readFileSync(set.configPath, "utf8");
       expect(text).toContain("# BEGIN alquimia-art");
       expect(text).toContain("# END alquimia-art");
       const cleared = clearGhosttyBackground(opts);
       expect(cleared.ok).toBe(true);
       expect(cleared.changed).toBe(true);
+      expect(cleared.needsReload).toBe(true);
       expect(readFileSync(set.configPath, "utf8")).not.toContain(
         "background-image"
       );
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it("set/clear report auto-reload success when SIGUSR2 path works", () => {
+    const root = mkdtempSync(join(tmpdir(), "alquimia-art-"));
+    try {
+      const xdg = join(root, "xdg");
+      const opts = {
+        home: root,
+        platform: "linux",
+        xdgConfigHome: xdg,
+        env: {},
+        reloadConfig: () => ({
+          ok: true,
+          method: "sigusr2",
+          pids: [4242],
+        }),
+      };
+      const set = setGhosttyBackground(art, opts);
+      expect(set.ok).toBe(true);
+      expect(set.reloaded).toBe(true);
+      expect(set.needsReload).toBe(false);
+      expect(set.reloadHint).toBeUndefined();
+      expect(set.successMessage).toBe(
+        "Fondo aplicado (config + reload automático)"
+      );
+      const cleared = clearGhosttyBackground(opts);
+      expect(cleared.ok).toBe(true);
+      expect(cleared.changed).toBe(true);
+      expect(cleared.reloaded).toBe(true);
+      expect(cleared.successMessage).toBe(
+        "Fondo sacado (config + reload automático)"
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("clear with no block still calls reload (live Ghostty may keep image)", () => {
+    const root = mkdtempSync(join(tmpdir(), "alquimia-art-"));
+    try {
+      const xdg = join(root, "xdg");
+      mkdirSync(join(xdg, "ghostty"), { recursive: true });
+      const configPath = join(xdg, "ghostty", "config");
+      writeFileSync(configPath, "theme = dark\n", "utf8");
+      let reloadCalls = 0;
+      const cleared = clearGhosttyBackground({
+        home: root,
+        platform: "linux",
+        xdgConfigHome: xdg,
+        env: {},
+        artPath: join(root, ".local", "share", "alquimia", "art.png"),
+        reloadConfig: () => {
+          reloadCalls += 1;
+          return { ok: true, method: "sigusr2", pids: [9] };
+        },
+      });
+      expect(reloadCalls).toBe(1);
+      expect(cleared.ok).toBe(true);
+      expect(cleared.changed).toBe(false);
+      expect(cleared.reloaded).toBe(true);
+      expect(cleared.successMessage).toMatch(/Nada en config; mandé reload/i);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("strips orphan alquimia background-image keys without managed block", () => {
+    const artPath = "/Users/x/.local/share/alquimia/art.png";
+    expect(isAlquimiaGhosttyImagePath(artPath)).toBe(true);
+    expect(isAlquimiaGhosttyImagePath("/tmp/other.png")).toBe(false);
+    const orphan = [
+      "font-size = 14",
+      `background-image = ${artPath}`,
+      "background-image-opacity = 0.55",
+      "background-image-position = center",
+      "theme = dark",
+      "",
+    ].join("\n");
+    const cleaned = clearOrphanAlquimiaGhosttyKeys(orphan, { artPath });
+    expect(cleaned).toContain("font-size = 14");
+    expect(cleaned).toContain("theme = dark");
+    expect(cleaned).not.toContain("background-image");
+    expect(clearGhosttyArtFromConfig(orphan, { artPath })).not.toContain(
+      "background-image"
+    );
   });
 
   it("resolve honors GHOSTTY_CONFIG_PATH; else first existing (macOS App Support)", () => {
@@ -270,10 +376,213 @@ describe("Ghostty config patcher", () => {
     }
   });
 
-  it("reload hint says config+reload, not live OSC", () => {
-    expect(ghosttyReloadHint("darwin")).toMatch(/no aplica el fondo en vivo/i);
+  it("reload hint says manual reload when auto-reload fails", () => {
+    expect(ghosttyReloadHint("darwin")).toMatch(/No pude recargar Ghostty/i);
     expect(ghosttyReloadHint("darwin")).toMatch(/⌘⇧,|cmd\+shift\+,/i);
+    expect(ghosttyReloadHint("darwin")).toMatch(/Accesibilidad/i);
     expect(ghosttyReloadHint("linux")).toMatch(/Ctrl\+Shift\+,/);
+  });
+});
+
+describe("Ghostty auto-reload (SIGUSR2 / AppleScript)", () => {
+  it("isGhosttyProcess matches exact binary / macOS app path only", () => {
+    expect(isGhosttyProcess("ghostty", "/usr/bin/ghostty")).toBe(true);
+    expect(isGhosttyProcess("Ghostty", "Ghostty")).toBe(true);
+    expect(
+      isGhosttyProcess(
+        "ghostty",
+        "/Applications/Ghostty.app/Contents/MacOS/ghostty"
+      )
+    ).toBe(true);
+    expect(
+      isGhosttyProcess(
+        "Ghostty",
+        "/Applications/Ghostty.app/Contents/MacOS/ghostty --foo"
+      )
+    ).toBe(true);
+    expect(isGhosttyProcess("ghostty-helper", "/usr/bin/ghostty-helper")).toBe(
+      false
+    );
+    expect(isGhosttyProcess("chrome", "chrome --user-data=ghostty")).toBe(
+      false
+    );
+    expect(
+      isGhosttyProcess(
+        "bash",
+        "bash -c echo Ghostty.app/Contents/MacOS/ghostty"
+      )
+    ).toBe(false);
+  });
+
+  it("findGhosttyPids parses ps listing without touching real processes", () => {
+    const psOutput = [
+      "  100 bash             /bin/bash",
+      "  200 ghostty          /usr/bin/ghostty",
+      "  201 ghostty-helper   /usr/bin/ghostty-helper",
+      "  300 Ghostty          /Applications/Ghostty.app/Contents/MacOS/ghostty",
+      "  301 Ghostty          Ghostty",
+      "  400 node             node /tmp/ghostty-cli.js",
+      "",
+    ].join("\n");
+    expect(
+      findGhosttyPids({ platform: "linux", psOutput })
+    ).toEqual([200, 300, 301]);
+  });
+
+  it("set always calls reload after write", () => {
+    const root = mkdtempSync(join(tmpdir(), "alquimia-art-"));
+    try {
+      const xdg = join(root, "xdg");
+      let reloadCalls = 0;
+      const set = setGhosttyBackground("/abs/art.png", {
+        home: root,
+        platform: "linux",
+        xdgConfigHome: xdg,
+        env: {},
+        reloadConfig: () => {
+          reloadCalls += 1;
+          return { ok: true, method: "sigusr2", pids: [1] };
+        },
+      });
+      expect(set.ok).toBe(true);
+      expect(reloadCalls).toBe(1);
+      expect(set.reloaded).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("signalGhosttySigusr2 uses process.kill with SIGUSR2 (mocked)", () => {
+    const calls = [];
+    const kill = (pid, signal) => {
+      calls.push({ pid, signal });
+      if (pid === 2) throw new Error("ESRCH");
+    };
+    const result = signalGhosttySigusr2([1, 2, 3], { kill });
+    expect(result.ok).toBe(true);
+    expect(result.signaled).toEqual([1, 3]);
+    expect(result.failed).toEqual([{ pid: 2, error: "ESRCH" }]);
+    expect(calls).toEqual([
+      { pid: 1, signal: "SIGUSR2" },
+      { pid: 2, signal: "SIGUSR2" },
+      { pid: 3, signal: "SIGUSR2" },
+    ]);
+  });
+
+  it("reloadGhosttyConfig prefers SIGUSR2; falls back to AppleScript on darwin", () => {
+    const sig = reloadGhosttyConfig({
+      platform: "linux",
+      findPids: () => [99],
+      signalPids: (pids) => ({ ok: true, signaled: pids, failed: [] }),
+      appleScriptReload: () => ({ ok: true }),
+    });
+    expect(sig).toEqual({ ok: true, method: "sigusr2", pids: [99] });
+
+    const as = reloadGhosttyConfig({
+      platform: "darwin",
+      findPids: () => [],
+      signalPids: () => ({ ok: false, signaled: [], failed: [] }),
+      appleScriptReload: () => ({ ok: true }),
+    });
+    expect(as).toEqual({ ok: true, method: "applescript", pids: [] });
+
+    const failLinux = reloadGhosttyConfig({
+      platform: "linux",
+      findPids: () => [],
+      signalPids: () => ({ ok: false, signaled: [], failed: [] }),
+      appleScriptReload: () => ({ ok: true }),
+    });
+    expect(failLinux.ok).toBe(false);
+    expect(failLinux.method).toBeNull();
+
+    const failAfterSignal = reloadGhosttyConfig({
+      platform: "darwin",
+      findPids: () => [7],
+      signalPids: () => ({
+        ok: false,
+        signaled: [],
+        failed: [{ pid: 7, error: "EPERM" }],
+      }),
+      appleScriptReload: () => ({ ok: false, error: "no a11y" }),
+    });
+    expect(failAfterSignal.ok).toBe(false);
+    expect(failAfterSignal.pids).toEqual([7]);
+  });
+});
+
+describe("Apple Terminal.app profile helpers", () => {
+  it("reads/writes prior-profile state under ~/.local/share/alquimia", () => {
+    const root = mkdtempSync(join(tmpdir(), "alquimia-term-"));
+    try {
+      expect(readAppleTerminalState({ home: root })).toBeNull();
+      expect(appleTerminalStatePath({ home: root })).toBe(
+        join(root, ".local", "share", "alquimia", "apple-terminal-state.json")
+      );
+      writeAppleTerminalState(
+        { priorProfile: "Basic", active: true, profile: ALQUIMIA_TERMINAL_PROFILE },
+        { home: root }
+      );
+      expect(readAppleTerminalState({ home: root })).toEqual({
+        priorProfile: "Basic",
+        active: true,
+        profile: "Alquimia",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("set switches to Alquimia and clear restores prior (mocked osascript)", () => {
+    const root = mkdtempSync(join(tmpdir(), "alquimia-term-"));
+    try {
+      const artPath = join(root, ".local", "share", "alquimia", "art.png");
+      mkdirSync(dirname(artPath), { recursive: true });
+      writeFileSync(artPath, "png", "utf8");
+
+      const set = setAppleTerminalBackground(artPath, {
+        home: root,
+        platform: "darwin",
+        getFrontProfile: () => ({ ok: true, name: "Basic" }),
+        profileExists: () => ({ ok: true, exists: true }),
+        ensureProfile: () => ({
+          ok: true,
+          terminalFile: join(root, "Alquimia.terminal"),
+          wrotePrefs: true,
+        }),
+        importProfile: () => ({ ok: true }),
+        switchProfile: (name) => ({ ok: name === "Alquimia" }),
+        sleepMs: () => {},
+      });
+      expect(set.ok).toBe(true);
+      expect(set.profile).toBe("Alquimia");
+      expect(set.priorProfile).toBe("Basic");
+      expect(set.successMessage).toMatch(/perfil Terminal/i);
+      expect(readAppleTerminalState({ home: root }).priorProfile).toBe("Basic");
+
+      const cleared = clearAppleTerminalBackground({
+        home: root,
+        platform: "darwin",
+        getFrontProfile: () => ({ ok: true, name: "Alquimia" }),
+        switchProfile: (name) => ({ ok: name === "Basic" }),
+      });
+      expect(cleared.ok).toBe(true);
+      expect(cleared.changed).toBe(true);
+      expect(cleared.successMessage).toMatch(/perfil «Basic»/);
+      expect(readAppleTerminalState({ home: root }).active).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("set on non-darwin fails honestly without calling osascript", () => {
+    const result = setAppleTerminalBackground("/tmp/art.png", {
+      platform: "linux",
+      ensureProfile: () => {
+        throw new Error("should not run");
+      },
+    });
+    expect(result.ok).toBe(false);
+    expect(result.tip).toMatch(/perfil/i);
   });
 });
 
