@@ -19,6 +19,9 @@ import {
   FIELD_ROWS,
   PLAYER_H,
   JUMP_VELOCITY,
+  TICK_MS,
+  TARGET_FPS,
+  DT,
   attachDinoInput,
   playDino,
 } from "../src/dino/game.js";
@@ -91,12 +94,19 @@ describe("dino — physics", () => {
     expect(again.playerVy).toBe(JUMP_VELOCITY);
   });
 
+  it("tick timing targets ~60 FPS with DT-scaled physics", () => {
+    expect(TARGET_FPS).toBe(60);
+    expect(TICK_MS).toBeCloseTo(1000 / 60, 5);
+    expect(DT).toBeCloseTo(20 / 60, 5);
+    expect(JUMP_VELOCITY).toBeCloseTo(2.85 * DT, 5);
+  });
+
   it("step moves player up then back to ground", () => {
     let s = createInitialState({ width: 40, seed: 1 });
     s = applyJump(s);
     s = step(s);
     expect(s.playerY).toBeGreaterThan(0);
-    for (let i = 0; i < 40; i++) s = step(s);
+    for (let i = 0; i < 80; i++) s = step(s);
     expect(s.playerY).toBe(0);
     expect(s.grounded).toBe(true);
     expect(s.score).toBeGreaterThan(0);
@@ -107,7 +117,7 @@ describe("dino — physics", () => {
     s.spawnIn = 999;
     s = applyJump(s);
     let sawDust = false;
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 80; i++) {
       s = step(s);
       if (s.grounded && s.dust > 0) sawDust = true;
     }

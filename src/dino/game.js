@@ -22,13 +22,28 @@ export const OBSTACLE_H = 2;
 export const PX_X = 2;
 export const PX_Y = 4;
 
-export const GRAVITY = 0.55;
-export const JUMP_VELOCITY = 2.85;
-export const BASE_SPEED = 1.15;
-export const SPEED_GAIN = 0.00035;
-export const SPAWN_MIN = 28;
-export const SPAWN_MAX = 52;
-export const TICK_MS = 50;
+/**
+ * Physics was tuned at 20 FPS (TICK_MS = 50). Target ~60 FPS and scale
+ * per-tick deltas so wall-clock speed / jump arc stay similar:
+ * velocities & spawn pacing ∝ DT, gravity (accel) ∝ DT².
+ */
+export const TARGET_FPS = 60;
+export const REF_FPS = 20;
+export const TICK_MS = 1000 / TARGET_FPS; // ~16.667ms ≈ 60 FPS
+/** Per-tick scale vs the original 50ms tuning (20/60). */
+export const DT = REF_FPS / TARGET_FPS;
+
+export const GRAVITY = 0.55 * DT * DT;
+export const JUMP_VELOCITY = 2.85 * DT;
+export const BASE_SPEED = 1.15 * DT;
+export const SPEED_GAIN = 0.00035 * DT;
+export const SPAWN_MIN = Math.round(28 / DT);
+export const SPAWN_MAX = Math.round(52 / DT);
+const SPAWN_FLOOR = Math.round(18 / DT);
+const INITIAL_SPAWN_IN = Math.round(22 / DT);
+const DUST_FRAMES = Math.round(6 / DT);
+/** Gap shrink vs speed, scaled so wall-clock match holds at TARGET_FPS. */
+const SPAWN_SPEED_FACTOR = 2 / (DT * DT);
 
 const CURSOR_HIDE = "\x1b[?25l";
 const CURSOR_SHOW = "\x1b[?25h";
@@ -134,7 +149,7 @@ export function createInitialState({ width = 56, seed = 1 } = {}) {
     obstacles: /** @type {{ x: number, w: number, h: number, kind: string }[]} */ (
       []
     ),
-    spawnIn: 22,
+    spawnIn: INITIAL_SPAWN_IN,
     status: /** @type {'playing'|'over'|'stopped'} */ ("playing"),
     rng: seed >>> 0 || 1,
     distance: 0,
@@ -213,7 +228,7 @@ export function step(state) {
   next.playerVy = vy;
   next.grounded = grounded;
   if (grounded && !wasGrounded) {
-    next.dust = 6;
+    next.dust = DUST_FRAMES;
   }
 
   const spd = BASE_SPEED + next.distance * SPEED_GAIN;
@@ -254,7 +269,7 @@ export function step(state) {
     }
     next.obstacles.push({ x: next.width - 1, w, h, kind });
     const gap = SPAWN_MIN + Math.floor(nextRng(next) * (SPAWN_MAX - SPAWN_MIN));
-    next.spawnIn = Math.max(18, gap - Math.floor(spd * 2));
+    next.spawnIn = Math.max(SPAWN_FLOOR, gap - Math.floor(spd * SPAWN_SPEED_FACTOR));
   }
 
   if (hitsObstacle(next)) {
@@ -727,7 +742,7 @@ function composeField(state) {
   // Landing dust puff near feet
   if (state.dust > 0 && state.grounded) {
     const feetX = 4 * PX_X + 3;
-    const age = 6 - state.dust;
+    const age = Math.round((DUST_FRAMES - state.dust) * DT);
     const puffs = [
       [feetX - 2 - age, groundTop - 1],
       [feetX + 6 + age, groundTop - 1],
@@ -736,7 +751,7 @@ function composeField(state) {
       [feetX + age, groundTop - 1],
     ];
     for (const [dx, dy] of puffs) {
-      if (state.dust >= 2 || Math.abs(dx - feetX) < 4) {
+      if (state.dust >= Math.round(2 / DT) || Math.abs(dx - feetX) < 4) {
         setPx(px, roles, pw, ph, dx, dy, ROLE.dust);
       }
     }
@@ -748,7 +763,7 @@ function composeField(state) {
   let bmp;
   if (crashed) bmp = PLAYER_CRASH;
   else if (!state.grounded) bmp = PLAYER_JUMP;
-  else bmp = PLAYER_RUN[state.tick % PLAYER_RUN.length];
+  else bmp = PLAYER_RUN[Math.floor(state.tick * DT) % PLAYER_RUN.length];
   const px0 = 4 * PX_X;
   const py0 = groundTop - bmp.length - liftPx;
   blit(
