@@ -8,15 +8,19 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { style } from "../style.js";
 
-/** Rows of the playfield (excluding HUD / hints). */
-export const FIELD_ROWS = 12;
-/** Player hitbox width in columns. */
+/** Braille playfield rows (each cell = 2×4 pixels). */
+export const FIELD_ROWS = 16;
+/** Player hitbox width in logical columns. */
 export const PLAYER_W = 5;
-/** Player standing height in rows (hitbox; sprite may be taller). */
+/** Player standing height in logical units (hitbox). */
 export const PLAYER_H = 3;
-/** Default obstacle width / height. */
+/** Default obstacle width / height (logical). */
 export const OBSTACLE_W = 2;
 export const OBSTACLE_H = 2;
+
+/** Pixels per logical X / Y unit (braille cell is 2×4 px). */
+export const PX_X = 2;
+export const PX_Y = 4;
 
 export const GRAVITY = 0.55;
 export const JUMP_VELOCITY = 2.85;
@@ -30,6 +34,40 @@ const CURSOR_HIDE = "\x1b[?25l";
 const CURSOR_SHOW = "\x1b[?25h";
 const ERASE_DOWN = "\x1b[0J";
 const ANSI_RE = /\u001b\[[0-9;]*m/g;
+
+const ROLE = {
+  empty: 0,
+  sky: 1,
+  ground: 2,
+  dust: 3,
+  rock: 4,
+  obstacle: 5,
+  player: 6,
+  crash: 7,
+};
+
+const ROLE_NAME = [
+  "empty",
+  "sky",
+  "ground",
+  "dust",
+  "rock",
+  "obstacle",
+  "player",
+  "crash",
+];
+
+/** Braille dot bit order for a 2×4 cell (row-major within cell). */
+const BRAILLE_DOTS = [
+  [0, 0, 0x01],
+  [0, 1, 0x02],
+  [0, 2, 0x04],
+  [0, 3, 0x40],
+  [1, 0, 0x08],
+  [1, 1, 0x10],
+  [1, 2, 0x20],
+  [1, 3, 0x80],
+];
 
 /**
  * Whether the dino overlay may run (TTY + interactive, not CI).
@@ -82,22 +120,26 @@ export function parseKey(chunk) {
 /**
  * @param {{ width?: number, seed?: number }} [opts]
  */
-export function createInitialState({ width = 48, seed = 1 } = {}) {
-  const w = Math.max(28, Math.min(80, Math.floor(width) || 48));
+export function createInitialState({ width = 56, seed = 1 } = {}) {
+  const w = Math.max(32, Math.min(96, Math.floor(width) || 56));
   return {
     width: w,
     tick: 0,
     score: 0,
     speed: BASE_SPEED,
-    /** Feet height above ground (>= 0). */
+    /** Feet height above ground (>= 0), logical units. */
     playerY: 0,
     playerVy: 0,
     grounded: true,
-    obstacles: /** @type {{ x: number, w: number, h: number }[]} */ ([]),
-    spawnIn: 20,
+    obstacles: /** @type {{ x: number, w: number, h: number, kind: string }[]} */ (
+      []
+    ),
+    spawnIn: 22,
     status: /** @type {'playing'|'over'|'stopped'} */ ("playing"),
     rng: seed >>> 0 || 1,
     distance: 0,
+    /** Landing dust frames remaining. */
+    dust: 0,
   };
 }
 
@@ -155,8 +197,10 @@ export function step(state) {
     ...state,
     tick: state.tick + 1,
     obstacles: state.obstacles.map((o) => ({ ...o })),
+    dust: state.dust > 0 ? state.dust - 1 : 0,
   };
 
+  const wasGrounded = state.grounded;
   let y = next.playerY + next.playerVy;
   let vy = next.playerVy - GRAVITY;
   let grounded = false;
@@ -168,6 +212,9 @@ export function step(state) {
   next.playerY = y;
   next.playerVy = vy;
   next.grounded = grounded;
+  if (grounded && !wasGrounded) {
+    next.dust = 6;
+  }
 
   const spd = BASE_SPEED + next.distance * SPEED_GAIN;
   next.speed = spd;
@@ -181,9 +228,31 @@ export function step(state) {
   next.spawnIn -= 1;
   if (next.spawnIn <= 0) {
     const roll = nextRng(next);
-    const h = roll > 0.72 ? 4 : roll > 0.45 ? 3 : 2;
-    const w = roll > 0.82 ? 3 : roll > 0.55 ? OBSTACLE_W : 2;
-    next.obstacles.push({ x: next.width - 1, w, h });
+    let h;
+    let w;
+    let kind;
+    if (roll > 0.82) {
+      h = 4;
+      w = 3;
+      kind = "cactus_wide";
+    } else if (roll > 0.62) {
+      h = 4;
+      w = 2;
+      kind = "cactus_tall";
+    } else if (roll > 0.4) {
+      h = 3;
+      w = 2;
+      kind = "cactus";
+    } else if (roll > 0.22) {
+      h = 2;
+      w = 3;
+      kind = "rock_wide";
+    } else {
+      h = 2;
+      w = OBSTACLE_W;
+      kind = "rock";
+    }
+    next.obstacles.push({ x: next.width - 1, w, h, kind });
     const gap = SPAWN_MIN + Math.floor(nextRng(next) * (SPAWN_MAX - SPAWN_MIN));
     next.spawnIn = Math.max(18, gap - Math.floor(spd * 2));
   }
@@ -251,91 +320,285 @@ export function saveHiScore(score, opts = {}) {
   return hi;
 }
 
-/* ── Original Unicode sprites (not Chrome assets) ──────────────────── */
+/* ── Braille pixel canvas + original sprites ───────────────────────── */
 
 /**
- * Multi-row alchemist runner — half-block / box glyphs.
- * Frames: run cycle + jump pose. 4 rows × 5 cols.
+ * Parse '#' / non-space into a dense pixel bitmap (row strings).
+ * @param {string[]} rows
+ * @returns {boolean[][]}
+ */
+export function parseSprite(rows) {
+  return rows.map((row) => [...row].map((ch) => ch !== "." && ch !== " "));
+}
+
+/**
+ * Pack a 2×4 pixel cell into a braille character (U+2800 + mask).
+ * Empty cells become a space (cleaner sky than ⠀).
+ * @param {boolean[]} bits eight booleans in BRAILLE_DOTS order
+ */
+export function bitsToBraille(bits) {
+  let mask = 0;
+  for (let i = 0; i < 8; i++) {
+    if (bits[i]) mask |= BRAILLE_DOTS[i][2];
+  }
+  if (mask === 0) return " ";
+  return String.fromCharCode(0x2800 + mask);
+}
+
+/**
+ * Encode a full pixel buffer into braille rows.
+ * @param {Uint8Array} px
+ * @param {Uint8Array} roles
+ * @param {number} pw
+ * @param {number} ph
+ * @returns {{ chars: string[][], roles: string[][] }}
+ */
+export function encodeBraille(px, roles, pw, ph) {
+  const cols = Math.floor(pw / 2);
+  const rows = Math.floor(ph / 4);
+  /** @type {string[][]} */
+  const chars = Array.from({ length: rows }, () => Array(cols).fill(" "));
+  /** @type {string[][]} */
+  const outRoles = Array.from({ length: rows }, () => Array(cols).fill("sky"));
+
+  for (let cy = 0; cy < rows; cy++) {
+    for (let cx = 0; cx < cols; cx++) {
+      let mask = 0;
+      let best = ROLE.empty;
+      for (const [dx, dy, bit] of BRAILLE_DOTS) {
+        const x = cx * 2 + dx;
+        const y = cy * 4 + dy;
+        if (x >= pw || y >= ph) continue;
+        const i = y * pw + x;
+        if (px[i]) {
+          mask |= bit;
+          if (roles[i] > best) best = roles[i];
+        }
+      }
+      chars[cy][cx] = mask === 0 ? " " : String.fromCharCode(0x2800 + mask);
+      outRoles[cy][cx] = ROLE_NAME[best] || "sky";
+    }
+  }
+  return { chars, roles: outRoles };
+}
+
+/* Pixel-art sprites — alchemist runner (not Chrome dino). '#' = on, '.' = off */
+
+const PLAYER_RUN = [
+  parseSprite([
+    "...####.....",
+    "..##..##....",
+    "..######....",
+    "..##.#.#....",
+    "...####.....",
+    "..######....",
+    ".########...",
+    "##.######.##",
+    "..######....",
+    "..######....",
+    "..##..##....",
+    ".##....##...",
+    "##......#...",
+  ]),
+  parseSprite([
+    "...####.....",
+    "..##..##....",
+    "..######....",
+    "..##.#.#....",
+    "...####.....",
+    "..######....",
+    ".#########..",
+    "##.#######..",
+    "..######....",
+    "..######....",
+    "...##.###...",
+    "...##...##..",
+    "...#.....##.",
+  ]),
+  parseSprite([
+    "...####.....",
+    "..##..##....",
+    "..######....",
+    "..##.#.#....",
+    "...####.....",
+    "..######....",
+    ".########...",
+    "##.######.##",
+    "..######....",
+    "..######....",
+    "..##..##....",
+    ".##....##...",
+    "#.......##..",
+  ]),
+  parseSprite([
+    "...####.....",
+    "..##..##....",
+    "..######....",
+    "..##.#.#....",
+    "...####.....",
+    "..######....",
+    "..#########.",
+    "..#######.##",
+    "..######....",
+    "..######....",
+    ".###.##.....",
+    "##...##.....",
+    "#.....#.....",
+  ]),
+];
+
+const PLAYER_JUMP = parseSprite([
+  "...####.....",
+  "..##..##....",
+  "..######....",
+  "..##.#.#....",
+  "...####.....",
+  "..########..",
+  ".##########.",
+  "##.######.##",
+  "..######....",
+  "..######....",
+  "...####.....",
+  "...#..#.....",
+  "...#..#.....",
+]);
+
+const PLAYER_CRASH = parseSprite([
+  "...#..#.....",
+  "..##..##....",
+  "..##..##....",
+  "..#.####....",
+  "...####.....",
+  "..########..",
+  ".##########.",
+  "##.######.##",
+  "..######....",
+  ".##....##...",
+  "##......##..",
+  "#........#..",
+]);
+
+const SPRITE_CACTUS = parseSprite([
+  "..####..",
+  ".######.",
+  ".##..##.",
+  ".######.",
+  "##.####.",
+  ".######.",
+  ".######.",
+  ".######.",
+  ".######.",
+  ".######.",
+  ".######.",
+  ".######.",
+]);
+
+const SPRITE_CACTUS_TALL = parseSprite([
+  "...####...",
+  "..######..",
+  "..##..##..",
+  "..######..",
+  ".##.#####.",
+  "#####.##..",
+  "..######..",
+  "..######..",
+  "..######..",
+  "..######..",
+  "..######..",
+  "..######..",
+  "..######..",
+  "..######..",
+  "..######..",
+  "..######..",
+]);
+
+const SPRITE_CACTUS_WIDE = parseSprite([
+  "....####.##...",
+  "...##########.",
+  "..###.##.#####",
+  "...##########.",
+  "..#####.##.###",
+  "...##########.",
+  "....########..",
+  "....########..",
+  "....########..",
+  "....########..",
+  "....########..",
+  "....########..",
+  "....########..",
+  "....########..",
+]);
+
+const SPRITE_ROCK = parseSprite([
+  "...####...",
+  "..######..",
+  ".########.",
+  "##########",
+  ".########.",
+  "..######..",
+]);
+
+const SPRITE_ROCK_WIDE = parseSprite([
+  "....####....",
+  "..########..",
+  ".##########.",
+  "############",
+  ".####..####.",
+  "..##....##..",
+]);
+
+/**
+ * Multi-frame alchemist as braille glyph rows (for tests / introspection).
  * @param {boolean} grounded
  * @param {number} tick
  * @returns {string[]}
  */
 export function playerGlyph(grounded, tick) {
-  if (!grounded) {
-    // Jump hold — tucked legs, blink/bob on the head row
-    return tick % 6 < 3
-      ? [" ▄█▀▄", "▐███▌", " ▐█▌ ", "  ▀  "]
-      : [" ▄█▄ ", "▐█▀█▌", " ▐█▌ ", "  ▀  "];
-  }
-  const phase = tick % 4;
-  if (phase === 0) {
-    return [" ▄█▄ ", "▐███▌", " ▐█▌ ", " ▀ ▘ "];
-  }
-  if (phase === 1) {
-    return [" ▄█▄ ", "▐█▀█▌", " ▐█▌ ", "  ▀▀ "];
-  }
-  if (phase === 2) {
-    return [" ▄█▄ ", "▐███▌", " ▐█▌ ", " ▝ ▀ "];
-  }
-  return [" ▄█▄ ", "▐█▄█▌", " ▐█▌ ", " ▀▀  "];
+  const bmp = grounded ? PLAYER_RUN[tick % PLAYER_RUN.length] : PLAYER_JUMP;
+  return spriteToBrailleRows(bmp);
 }
+
 /**
- * Cacti / crystal rocks — taller than the old Y sticks.
+ * @param {boolean[][]} bmp
+ * @returns {string[]}
+ */
+export function spriteToBrailleRows(bmp) {
+  const h = bmp.length;
+  const w = bmp[0]?.length ?? 0;
+  const ph = Math.ceil(h / 4) * 4;
+  const pw = Math.ceil(w / 2) * 2;
+  const px = new Uint8Array(pw * ph);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (bmp[y][x]) px[y * pw + x] = 1;
+    }
+  }
+  const { chars } = encodeBraille(px, new Uint8Array(pw * ph), pw, ph);
+  return chars.map((r) => r.join(""));
+}
+
+/**
+ * @param {number} h
+ * @param {number} w
+ * @param {string} [kind]
+ * @returns {boolean[][]}
+ */
+export function obstacleSprite(h, w, kind) {
+  if (kind === "cactus_wide" || (w >= 3 && h >= 4)) return SPRITE_CACTUS_WIDE;
+  if (kind === "cactus_tall" || h >= 4) return SPRITE_CACTUS_TALL;
+  if (kind === "rock_wide" || (w >= 3 && h <= 2)) return SPRITE_ROCK_WIDE;
+  if (kind === "rock" || h <= 2) return SPRITE_ROCK;
+  return SPRITE_CACTUS;
+}
+
+/**
+ * Legacy string glyph helper — braille rows for an obstacle.
  * @param {number} h
  * @param {number} w
  * @returns {string[]}
  */
 export function obstacleGlyph(h, w) {
-  const height = Math.max(2, Math.min(5, h | 0));
-  const width = Math.max(2, Math.min(4, w | 0));
-  /** @type {string[]} */
-  const lines = [];
-
-  if (width >= 3) {
-    // Broad cactus / crystal pillar
-    for (let row = 0; row < height; row++) {
-      if (row === height - 1) {
-        lines.push("▐█▌");
-      } else if (row === height - 2) {
-        lines.push("█▐█");
-      } else if (row === 0) {
-        lines.push(" ▓ ");
-      } else {
-        lines.push("▐█▌");
-      }
-    }
-  } else {
-    for (let row = 0; row < height; row++) {
-      if (row === height - 1) {
-        lines.push("▐▌");
-      } else if (row === 0) {
-        lines.push("▓▓");
-      } else if (row === height - 2 && height >= 3) {
-        lines.push("█▌");
-      } else {
-        lines.push("▐█");
-      }
-    }
-  }
-
-  return lines.map((l) => l.padEnd(width, " ").slice(0, width));
-}
-
-/**
- * Continuous ground with subtle scrolling grit.
- * @param {number} width
- * @param {number} distance
- */
-function groundTexture(width, distance) {
-  const base = "▀";
-  const grit = ["▀", "▀", "▀", "▄", "▀", "▔", "▀", "▀"];
-  let out = "";
-  const offset = Math.floor(distance) % grit.length;
-  for (let x = 0; x < width; x++) {
-    const g = grit[(x + offset) % grit.length];
-    out += x % 11 === offset % 11 ? g : base;
-  }
-  return out;
+  return spriteToBrailleRows(obstacleSprite(h, w));
 }
 
 /**
@@ -346,74 +609,160 @@ export function visibleWidth(s) {
 }
 
 /**
- * Compose playfield as chars + role tags for coloring.
+ * Blit a sprite bitmap onto the canvas. Origin is top-left of sprite.
+ * @param {Uint8Array} px
+ * @param {Uint8Array} roles
+ * @param {number} pw
+ * @param {number} ph
+ * @param {boolean[][]} bmp
+ * @param {number} x0
+ * @param {number} y0
+ * @param {number} role
+ */
+function blit(px, roles, pw, ph, bmp, x0, y0, role) {
+  for (let y = 0; y < bmp.length; y++) {
+    const row = bmp[y];
+    const gy = y0 + y;
+    if (gy < 0 || gy >= ph) continue;
+    for (let x = 0; x < row.length; x++) {
+      if (!row[x]) continue;
+      const gx = x0 + x;
+      if (gx < 0 || gx >= pw) continue;
+      const i = gy * pw + gx;
+      if (role >= roles[i]) {
+        px[i] = 1;
+        roles[i] = role;
+      }
+    }
+  }
+}
+
+/**
+ * Set a single pixel if in bounds / priority allows.
+ * @param {Uint8Array} px
+ * @param {Uint8Array} roles
+ * @param {number} pw
+ * @param {number} ph
+ * @param {number} x
+ * @param {number} y
+ * @param {number} role
+ */
+function setPx(px, roles, pw, ph, x, y, role) {
+  if (x < 0 || y < 0 || x >= pw || y >= ph) return;
+  const i = y * pw + x;
+  if (role >= roles[i]) {
+    px[i] = 1;
+    roles[i] = role;
+  }
+}
+
+/**
+ * Compose playfield as braille chars + role tags for coloring.
  * @param {ReturnType<typeof createInitialState>} state
  * @returns {{ chars: string[][], roles: string[][] }}
  */
 function composeField(state) {
-  /** @type {string[][]} */
-  const chars = Array.from({ length: FIELD_ROWS }, () =>
-    Array.from({ length: state.width }, () => " ")
-  );
-  /** @type {string[][]} */
-  const roles = Array.from({ length: FIELD_ROWS }, () =>
-    Array.from({ length: state.width }, () => "sky")
-  );
+  const cols = state.width;
+  const rows = FIELD_ROWS;
+  const pw = cols * 2;
+  const ph = rows * 4;
+  const px = new Uint8Array(pw * ph);
+  const roles = new Uint8Array(pw * ph);
 
-  const put = (col, rowFromBottom, ch, role) => {
-    const r = FIELD_ROWS - 1 - rowFromBottom;
-    if (r < 0 || r >= FIELD_ROWS) return;
-    if (col < 0 || col >= state.width) return;
-    if (!ch || ch === " ") return;
-    chars[r][col] = ch;
-    roles[r][col] = role;
-  };
-
-  // Continuous baseline on the bottom row + soft dunes a row above
-  const ground = groundTexture(state.width, state.distance);
-  for (let x = 0; x < state.width; x++) {
-    put(x, 0, ground[x], "ground");
-  }
-  for (let x = 0; x < state.width; x++) {
-    const phase = Math.floor(state.distance * 0.5 + x) % 17;
-    if (phase === 0 || phase === 8) put(x, 1, "·", "ground");
-    if (phase === 4) put(x, 1, "˚", "sky");
-  }
-
-  // Sparse sky dust
-  for (let x = 3; x < state.width; x += 9) {
-    const yr = 3 + ((Math.floor(state.distance / 8) + x) % 4);
-    const col = (x + Math.floor(state.distance / 3)) % state.width;
-    if (chars[FIELD_ROWS - 1 - yr][col] === " ") {
-      put(col, yr, "·", "sky");
+  // Ground band: solid top edge of the bottom braille row + grit
+  const groundTop = ph - 4;
+  const scroll = Math.floor(state.distance * PX_X);
+  for (let x = 0; x < pw; x++) {
+    setPx(px, roles, pw, ph, x, groundTop, ROLE.ground);
+    setPx(px, roles, pw, ph, x, groundTop + 1, ROLE.ground);
+    // Subtle scrolling grit on lower dots
+    const g = (x + scroll) % 11;
+    if (g === 0 || g === 5) {
+      setPx(px, roles, pw, ph, x, groundTop + 2, ROLE.ground);
+    }
+    if (g === 2) {
+      setPx(px, roles, pw, ph, x, groundTop + 3, ROLE.ground);
     }
   }
 
+  // Soft dune / horizon dust just above ground
+  for (let x = 0; x < pw; x++) {
+    const phase = (x + Math.floor(state.distance)) % 23;
+    if (phase === 0) setPx(px, roles, pw, ph, x, groundTop - 1, ROLE.ground);
+    if (phase === 11) setPx(px, roles, pw, ph, x, groundTop - 2, ROLE.sky);
+  }
+
+  // Muted sky particles (parallax)
+  for (let n = 0; n < Math.floor(cols / 5); n++) {
+    const seed = n * 47 + Math.floor(state.distance / 3);
+    const sx = (seed * 13 + n * 17) % pw;
+    const sy = 2 + ((seed * 7) % Math.max(4, groundTop - 14));
+    setPx(px, roles, pw, ph, sx, sy, ROLE.sky);
+    if (n % 3 === 0) {
+      setPx(px, roles, pw, ph, (sx + 3) % pw, sy + 2, ROLE.sky);
+    }
+  }
+
+  // Obstacles — feet sit on groundTop
   for (const ob of state.obstacles) {
-    const glyph = obstacleGlyph(ob.h, ob.w);
-    const role = ob.w >= 3 || ob.h >= 4 ? "obstacle" : "rock";
-    for (let i = 0; i < glyph.length; i++) {
-      const line = glyph[i];
-      // Base rests on the ground row (overwrites baseline under the sprite)
-      for (let c = 0; c < line.length; c++) {
-        put(Math.floor(ob.x) + c, i, line[c], role);
+    const kind =
+      ob.kind ||
+      (ob.w >= 3 && ob.h >= 4
+        ? "cactus_wide"
+        : ob.h >= 4
+          ? "cactus_tall"
+          : ob.w >= 3
+            ? "rock_wide"
+            : ob.h <= 2
+              ? "rock"
+              : "cactus");
+    const bmp = obstacleSprite(ob.h, ob.w, kind);
+    const role =
+      kind.startsWith("rock") || ob.h <= 2 ? ROLE.rock : ROLE.obstacle;
+    const ox = Math.round(ob.x * PX_X);
+    const oy = groundTop - bmp.length;
+    blit(px, roles, pw, ph, bmp, ox, oy, role);
+  }
+
+  // Landing dust puff near feet
+  if (state.dust > 0 && state.grounded) {
+    const feetX = 4 * PX_X + 3;
+    const age = 6 - state.dust;
+    const puffs = [
+      [feetX - 2 - age, groundTop - 1],
+      [feetX + 6 + age, groundTop - 1],
+      [feetX - 1 - age, groundTop - 2],
+      [feetX + 5 + age, groundTop - 2],
+      [feetX + age, groundTop - 1],
+    ];
+    for (const [dx, dy] of puffs) {
+      if (state.dust >= 2 || Math.abs(dx - feetX) < 4) {
+        setPx(px, roles, pw, ph, dx, dy, ROLE.dust);
       }
     }
   }
 
-  const lift = Math.max(0, Math.round(state.playerY));
-  const pGlyph = playerGlyph(state.grounded, state.tick);
+  // Player
+  const liftPx = Math.max(0, Math.round(state.playerY * PX_Y));
   const crashed = state.status === "over";
-  for (let i = 0; i < pGlyph.length; i++) {
-    // Feet share the ground row when grounded — full 4-row sprite fits in FIELD_ROWS at jump peak
-    const rowFromBottom = lift + (pGlyph.length - 1 - i);
-    const line = pGlyph[i];
-    for (let c = 0; c < line.length; c++) {
-      put(4 + c, rowFromBottom, line[c], crashed ? "crash" : "player");
-    }
-  }
+  let bmp;
+  if (crashed) bmp = PLAYER_CRASH;
+  else if (!state.grounded) bmp = PLAYER_JUMP;
+  else bmp = PLAYER_RUN[state.tick % PLAYER_RUN.length];
+  const px0 = 4 * PX_X;
+  const py0 = groundTop - bmp.length - liftPx;
+  blit(
+    px,
+    roles,
+    pw,
+    ph,
+    bmp,
+    px0,
+    py0,
+    crashed ? ROLE.crash : ROLE.player
+  );
 
-  return { chars, roles };
+  return encodeBraille(px, roles, pw, ph);
 }
 
 /**
@@ -432,6 +781,8 @@ function paintCell(ch, role, color) {
       return style.brightGreen(ch);
     case "rock":
       return style.brightYellow(ch);
+    case "dust":
+      return style.dim(style.yellow(ch));
     case "ground":
       return style.dim(ch);
     case "sky":
@@ -442,7 +793,7 @@ function paintCell(ch, role, color) {
 }
 
 /**
- * Render playfield rows (bottom = ground). Plain ASCII/Unicode, no ANSI.
+ * Render playfield rows (braille canvas). No ANSI.
  * @param {ReturnType<typeof createInitialState>} state
  * @returns {string[]}
  */
@@ -506,7 +857,8 @@ export function renderFrame(state, { sidecar = false, color, hiScore = 0 } = {})
 
   const title = "Alquimia Runner";
   const scoreBit = `★ ${String(state.score).padStart(4, " ")}`;
-  const hiBit = `HI ${String(Math.max(hi, state.status === "over" ? state.score : hi)).padStart(4, " ")}`;
+  const shownHi = Math.max(hi, state.status === "over" ? state.score : hi);
+  const hiBit = `HI ${String(shownHi).padStart(4, " ")}`;
   const gap = Math.max(
     1,
     w - visibleWidth(title) - visibleWidth(scoreBit) - visibleWidth(hiBit) - 2
@@ -527,14 +879,16 @@ export function renderFrame(state, { sidecar = false, color, hiScore = 0 } = {})
 
   if (sidecar && state.status === "playing") {
     const sub = "mientras instalamos…";
-    lines.push(paint ? style.dim(padLine(sub, w, "left")) : padLine(sub, w, "left"));
+    lines.push(
+      paint ? style.dim(padLine(sub, w, "left")) : padLine(sub, w, "left")
+    );
   }
 
   const plainField = renderField(state);
   const field = paint ? renderFieldColored(state, true) : plainField;
 
   if (state.status === "over") {
-    const panelInner = Math.min(30, Math.max(24, w - 8));
+    const panelInner = Math.min(32, Math.max(24, w - 10));
     const panelW = panelInner + 2;
     const left = Math.max(0, Math.floor((w - panelW) / 2));
     const record = Math.max(hi, state.score);
@@ -592,14 +946,18 @@ export function renderFrame(state, { sidecar = false, color, hiScore = 0 } = {})
   if (state.status === "over") {
     if (!sidecar) {
       const hint = "Enter para reiniciar · q/Esc salí";
-      lines.push(paint ? style.dim(padLine(hint, w, "center")) : padLine(hint, w, "center"));
+      lines.push(
+        paint ? style.dim(padLine(hint, w, "center")) : padLine(hint, w, "center")
+      );
     }
   } else if (state.status === "stopped") {
     const msg = "Listo — volvemos al install/update.";
     lines.push(paint ? style.dim(msg) : msg);
   } else {
     const hint = "Espacio/↑ saltá · q/Esc salí";
-    lines.push(paint ? style.dim(padLine(hint, w, "center")) : padLine(hint, w, "center"));
+    lines.push(
+      paint ? style.dim(padLine(hint, w, "center")) : padLine(hint, w, "center")
+    );
   }
 
   return lines.join("\n");
@@ -663,7 +1021,7 @@ export function playDino(opts = {}) {
   }
 
   const width =
-    opts.width ?? Math.min(64, Math.max(40, (stdout.columns || 56) - 2));
+    opts.width ?? Math.min(80, Math.max(48, (stdout.columns || 64) - 2));
   let state = createInitialState({
     width,
     seed: (Date.now() % 100000) + 1,
@@ -756,7 +1114,6 @@ export function playDino(opts = {}) {
   stdin.resume();
   write(CURSOR_HIDE);
 
-  // Single HUD lives inside the frame — no duplicate title above.
   if (sidecar) {
     write(
       `${style.dim("Mientras tanto, Alquimia Runner — Espacio/↑ saltá")}\n`

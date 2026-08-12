@@ -13,6 +13,9 @@ import {
   loadHiScore,
   saveHiScore,
   dinoHiScorePath,
+  bitsToBraille,
+  parseSprite,
+  spriteToBrailleRows,
   FIELD_ROWS,
   PLAYER_H,
   JUMP_VELOCITY,
@@ -21,6 +24,8 @@ import { createFakeStdin, createFakeStdout } from "./helpers/fake-tty.js";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+const BRAILLE_RE = /[\u2800-\u28FF]/;
 
 describe("dino — parseKey", () => {
   it("maps jump / quit / restart", () => {
@@ -68,7 +73,7 @@ describe("dino — shouldOfferDino", () => {
 describe("dino — physics", () => {
   it("createInitialState clamps width and starts grounded", () => {
     const s = createInitialState({ width: 10, seed: 7 });
-    expect(s.width).toBe(28);
+    expect(s.width).toBe(32);
     expect(s.grounded).toBe(true);
     expect(s.playerY).toBe(0);
     expect(s.status).toBe("playing");
@@ -92,6 +97,19 @@ describe("dino — physics", () => {
     expect(s.playerY).toBe(0);
     expect(s.grounded).toBe(true);
     expect(s.score).toBeGreaterThan(0);
+  });
+
+  it("landing sets a short dust puff", () => {
+    let s = createInitialState({ width: 40, seed: 1 });
+    s.spawnIn = 999;
+    s = applyJump(s);
+    let sawDust = false;
+    for (let i = 0; i < 40; i++) {
+      s = step(s);
+      if (s.grounded && s.dust > 0) sawDust = true;
+    }
+    expect(s.grounded).toBe(true);
+    expect(sawDust).toBe(true);
   });
 
   it("hitsObstacle detects overlap and jump clears short obstacles", () => {
@@ -122,45 +140,79 @@ describe("dino — physics", () => {
   });
 });
 
-describe("dino — render", () => {
-  it("renderField includes multi-row player and keeps width", () => {
-    const s = createInitialState({ width: 36, seed: 2 });
-    const field = renderField(s);
-    expect(field).toHaveLength(FIELD_ROWS);
-    expect(FIELD_ROWS).toBeGreaterThanOrEqual(8);
-    expect(field.every((line) => line.length === 36)).toBe(true);
-    const joined = field.join("\n");
-    expect(joined).toMatch(/[▄█▐▌▀]/);
-    // Continuous ground baseline (not sparse lonely dots)
-    expect(field[field.length - 1]).toMatch(/▀{8,}/);
+describe("dino — braille render", () => {
+  it("bitsToBraille packs the U+2800 block", () => {
+    expect(bitsToBraille([false, false, false, false, false, false, false, false])).toBe(
+      " "
+    );
+    // only top-left dot → ⠁ (U+2801)
+    expect(bitsToBraille([true, false, false, false, false, false, false, false])).toBe(
+      "\u2801"
+    );
+    // full cell
+    const full = bitsToBraille([true, true, true, true, true, true, true, true]);
+    expect(full).toBe("\u28FF");
   });
 
-  it("playerGlyph has run cycle and jump pose", () => {
+  it("renderField is a dense braille canvas with stable width", () => {
+    const s = createInitialState({ width: 48, seed: 2 });
+    const field = renderField(s);
+    expect(field).toHaveLength(FIELD_ROWS);
+    expect(FIELD_ROWS).toBeGreaterThanOrEqual(14);
+    expect(field.every((line) => line.length === 48)).toBe(true);
+    const joined = field.join("\n");
+    expect(joined).toMatch(BRAILLE_RE);
+    // Non-empty playfield: ground row + player pixels
+    const brailleCount = [...joined].filter((ch) =>
+      ch >= "\u2800" && ch <= "\u28FF"
+    ).length;
+    expect(brailleCount).toBeGreaterThan(40);
+    // Bottom row is mostly ground braille (continuous)
+    const groundBraille = [...field[field.length - 1]].filter((ch) =>
+      ch >= "\u2800" && ch <= "\u28FF"
+    ).length;
+    expect(groundBraille).toBeGreaterThan(30);
+  });
+
+  it("playerGlyph run cycle differs from jump and stays in braille", () => {
     const a = playerGlyph(true, 0);
     const b = playerGlyph(true, 1);
     const jump = playerGlyph(false, 0);
-    expect(a).toHaveLength(4);
-    expect(a.every((row) => [...row].length === 5)).toBe(true);
+    expect(a.length).toBeGreaterThanOrEqual(2);
+    expect(a.join("\n")).toMatch(BRAILLE_RE);
     expect(a.join("\n")).not.toBe(b.join("\n"));
     expect(jump.join("\n")).not.toBe(a.join("\n"));
   });
 
-  it("renderFrame has Spanish HUD + hi-score + game over panel", () => {
-    const s = createInitialState({ width: 36, seed: 2 });
+  it("spriteToBrailleRows encodes parseSprite bitmaps", () => {
+    const bmp = parseSprite(["##", "##", "..", "##"]);
+    const rows = spriteToBrailleRows(bmp);
+    expect(rows.join("")).toMatch(BRAILLE_RE);
+  });
+
+  it("renderFrame has Spanish HUD + hi-score + game over overlay", () => {
+    const s = createInitialState({ width: 48, seed: 2 });
     const frame = renderFrame(s, { hiScore: 12 });
     expect(frame).toMatch(/Alquimia Runner/);
     expect(frame).toMatch(/★/);
     expect(frame).toMatch(/HI\s+12/);
     expect(frame).toMatch(/Espacio/);
-    // No cluttered duplicate title lines
-    expect(frame.split("\n").filter((l) => l.includes("Alquimia Runner"))).toHaveLength(1);
+    expect(frame).toMatch(BRAILLE_RE);
+    expect(
+      frame.split("\n").filter((l) => l.includes("Alquimia Runner"))
+    ).toHaveLength(1);
 
-    const over = renderFrame({ ...s, status: "over", score: 9 }, { hiScore: 12 });
+    const over = renderFrame(
+      { ...s, status: "over", score: 9 },
+      { hiScore: 12 }
+    );
     expect(over).toMatch(/¡Chocaste!/);
     expect(over).toMatch(/Puntos\s+9/);
     expect(over).toMatch(/Récord\s+12/);
     expect(over).toMatch(/Enter para reiniciar/);
     expect(over).toMatch(/╭/);
+    // Overlay keeps braille from the frozen field around the panel
+    expect(over).toMatch(BRAILLE_RE);
   });
 });
 

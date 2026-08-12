@@ -190,7 +190,7 @@ Completa comandos y flags principales (`art`, `tools`, `doctor`, `--opacity`, `-
 
 ### dino
 
-Alquimia Runner: un endless runner original en la TTY (sprites Unicode propios — no es el dino de Chrome). HUD con score + hi-score persistido en `~/.local/share/alquimia/dino-hiscore.json`.
+Alquimia Runner: un endless runner original en la TTY con **canvas braille** (U+2800, 2×4 px por celda) — sprites densos propios, no es el dino de Chrome. HUD con score + hi-score persistido en `~/.local/share/alquimia/dino-hiscore.json`. Respeta `NO_COLOR` (monochrome braille legible).
 
 ```bash
 alquimia dino
@@ -251,7 +251,7 @@ ESM (`"type": "module"`), sin dependencias de runtime (Vitest solo en dev), lice
 
 ## Changelog
 
-- **0.5.18** — Alquimia Runner UI polish: sprites Unicode multi-fila, campo más alto, colores ANSI (respeta `NO_COLOR`), HUD con hi-score (`~/.local/share/alquimia/dino-hiscore.json`), suelo continuo, panel de game over. Sin deps nuevas.
+- **0.5.18** — Alquimia Runner UI: canvas braille denso (U+2800), sprites pixel-art (run cycle + salto + dust), campo más ancho/alto, colores ANSI (cyan/green/amber; respeta `NO_COLOR`), HUD + hi-score (`~/.local/share/alquimia/dino-hiscore.json`), overlay de game over. Sin deps nuevas.
 - **0.5.17** — `alquimia dino`: Alquimia Runner TTY original (Espacio/↑, q/Esc, Enter reinicia). Durante `tools` install y `update` en TTY interactiva corre en paralelo; se saltea con `--no-interactive` / CI / `ALQUIMIA_NO_DINO`. Helpers puros + Vitest. Sin deps nuevas.
 - **0.5.15** — Help global más corto: tagline + Uso + Comandos (sin bloques Opciones / redes / secciones de tools / Auto-update). Flags y features siguen igual; tip de per-command help no se agregó (aún no hay `alquimia <cmd> --help`). Sin deps nuevas.
 - **0.5.14** — `alquimia doctor` (diagnóstico + `--json`). `art --opacity` / `--fit` con prefs en `~/.local/share/alquimia/art-prefs.json` (`--clear` mantiene prefs; re-aplicar reescribe el bloque Ghostty). Completions zsh/bash/fish vía `alquimia completion <shell>`. Filtro type-to-search en el picker de `tools`. Sin deps nuevas.
