@@ -47,10 +47,13 @@ import {
   clearWindowsTerminalSettings,
   windowsTerminalSettingsCandidates,
   toWindowsPathIfWsl,
+  GHOSTTY_DEFAULT_OPACITY,
 } from "./art/backends.js";
 import {
   BLOCK_BEGIN,
   BLOCK_END,
+  GHOSTTY_BLOCK_BEGIN,
+  GHOSTTY_BLOCK_END,
   LEGACY_GHOSTTY_MARKER,
   patchConfigBlock,
   clearConfigBlock,
@@ -86,7 +89,10 @@ export {
   toWindowsPathIfWsl,
   BLOCK_BEGIN,
   BLOCK_END,
+  GHOSTTY_BLOCK_BEGIN,
+  GHOSTTY_BLOCK_END,
   LEGACY_GHOSTTY_MARKER,
+  GHOSTTY_DEFAULT_OPACITY,
   patchConfigBlock,
   clearConfigBlock,
   setGhosttyBackground,
@@ -107,9 +113,8 @@ export {
   clearTerminologyBackground,
 };
 
-/** @deprecated use BLOCK_BEGIN — kept for older tests */
-export const GHOSTTY_ART_MARKER = LEGACY_GHOSTTY_MARKER;
-export const GHOSTTY_DEFAULT_OPACITY = 0.25;
+/** @deprecated use GHOSTTY_BLOCK_BEGIN */
+export const GHOSTTY_ART_MARKER = GHOSTTY_BLOCK_BEGIN;
 
 /**
  * Absolute path to bundled brand art (works from source tree and global npm install).
@@ -260,10 +265,15 @@ async function setForTerminal(terminal, artPath) {
   }
 
   if (terminal === "ghostty") {
+    // Config write + reload only — Ghostty has no live OSC background path.
     return reportConfigResult(
       setGhosttyBackground(artPath),
       "Ghostty",
-      artPath
+      artPath,
+      {
+        successExtra:
+          "Se escribió la config (no es OSC en vivo). Recargá Ghostty para ver el fondo.",
+      }
     );
   }
 
@@ -405,11 +415,12 @@ async function clearForTerminal(terminal, artPath) {
   return false;
 }
 
-function reportConfigResult(result, name, artPath) {
+function reportConfigResult(result, name, artPath, { successExtra } = {}) {
   if (result.ok) {
     console.log(
       `${style.green("✓")} Fondo escrito para ${name} (no es universal en todas las terminales).`
     );
+    if (successExtra) console.log(style.dim(successExtra));
     if (result.configPath) console.log(style.dim(`Config: ${result.configPath}`));
     if (result.reloadHint) console.log(style.dim(result.reloadHint));
     if (result.tip) console.log(style.dim(result.tip));

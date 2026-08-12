@@ -37,6 +37,8 @@ import {
   clearConfigBlock,
   BLOCK_BEGIN,
   BLOCK_END,
+  GHOSTTY_BLOCK_BEGIN,
+  GHOSTTY_BLOCK_END,
   LEGACY_GHOSTTY_MARKER,
   GHOSTTY_DEFAULT_OPACITY,
   getArtPath,
@@ -144,34 +146,50 @@ describe("ensurePersistedArt", () => {
 describe("Ghostty config patcher", () => {
   const art = "/abs/path/to/art.png";
 
-  it("lists XDG + macOS paths", () => {
+  it("lists GHOSTTY_CONFIG_PATH, macOS App Support, then XDG", () => {
     const paths = ghosttyConfigCandidates({
       home: "/Users/nico",
       platform: "darwin",
       xdgConfigHome: null,
+      env: { GHOSTTY_CONFIG_PATH: "/custom/ghostty.conf" },
     });
-    expect(paths).toContain("/Users/nico/.config/ghostty/config");
+    expect(paths[0]).toBe("/custom/ghostty.conf");
     expect(paths).toContain(
       "/Users/nico/Library/Application Support/com.mitchellh.ghostty/config"
     );
+    expect(paths).toContain("/Users/nico/.config/ghostty/config");
+    // App Support before XDG on macOS
+    expect(
+      paths.indexOf(
+        "/Users/nico/Library/Application Support/com.mitchellh.ghostty/config"
+      )
+    ).toBeLessThan(paths.indexOf("/Users/nico/.config/ghostty/config"));
   });
 
-  it("patches with BEGIN/END block including fit/position/opacity", () => {
+  it("patches with # BEGIN/END alquimia-art and Ghostty 1.2 keys", () => {
+    expect(GHOSTTY_DEFAULT_OPACITY).toBe(0.35);
     const next = patchGhosttyConfigContent("theme = dark\n", art);
-    expect(next).toContain(BLOCK_BEGIN);
+    expect(next).toContain(GHOSTTY_BLOCK_BEGIN);
+    expect(next).toContain(GHOSTTY_BLOCK_END);
     expect(next).toContain(`background-image = ${art}`);
-    expect(next).toContain(
-      `background-image-opacity = ${GHOSTTY_DEFAULT_OPACITY}`
-    );
-    expect(next).toContain("background-image-fit = contain");
+    expect(next).toContain("background-image-opacity = 0.35");
     expect(next).toContain("background-image-position = center");
-    expect(next).toContain(BLOCK_END);
+    expect(next).toContain("background-image-fit = contain");
+    expect(next).toContain("background-image-repeat = false");
     expect(next).toContain("theme = dark");
   });
 
-  it("clears modern block and legacy # alquimia-art pairs", () => {
+  it("clears BEGIN/END block, >>> legacy block, and # alquimia-art pairs", () => {
     const modern = patchGhosttyConfigContent("x = 1\n", art);
     expect(clearGhosttyArtFromConfig(modern)).not.toContain("background-image");
+
+    const arrowLegacy = patchConfigBlock("y = 2\n", BLOCK_BEGIN, BLOCK_END, [
+      `background-image = ${art}`,
+    ]);
+    expect(clearGhosttyArtFromConfig(arrowLegacy)).not.toContain(
+      "background-image"
+    );
+
     const legacy = [
       "font-size = 14",
       LEGACY_GHOSTTY_MARKER,
@@ -186,16 +204,23 @@ describe("Ghostty config patcher", () => {
     expect(cleared).not.toContain(LEGACY_GHOSTTY_MARKER);
   });
 
-  it("set/clear with temp HOME", () => {
+  it("set creates parent dirs; clear removes only managed block", () => {
     const root = mkdtempSync(join(tmpdir(), "alquimia-art-"));
     try {
       const xdg = join(root, "xdg");
-      const opts = { home: root, platform: "linux", xdgConfigHome: xdg };
+      const opts = {
+        home: root,
+        platform: "linux",
+        xdgConfigHome: xdg,
+        env: {},
+      };
       const set = setGhosttyBackground(art, opts);
       expect(set.ok).toBe(true);
       expect(existsSync(set.configPath)).toBe(true);
+      expect(set.needsReload).toBe(true);
       const text = readFileSync(set.configPath, "utf8");
-      expect(text).toContain(BLOCK_BEGIN);
+      expect(text).toContain("# BEGIN alquimia-art");
+      expect(text).toContain("# END alquimia-art");
       const cleared = clearGhosttyBackground(opts);
       expect(cleared.ok).toBe(true);
       expect(cleared.changed).toBe(true);
@@ -207,7 +232,7 @@ describe("Ghostty config patcher", () => {
     }
   });
 
-  it("resolve prefers marker file; else last existing (macOS wins)", () => {
+  it("resolve honors GHOSTTY_CONFIG_PATH; else first existing (macOS App Support)", () => {
     const root = mkdtempSync(join(tmpdir(), "alquimia-art-"));
     try {
       const xdg = join(root, "xdg");
@@ -226,15 +251,28 @@ describe("Ghostty config patcher", () => {
           home: root,
           platform: "darwin",
           xdgConfigHome: xdg,
+          env: {},
         })
       ).toBe(join(mac, "config"));
+
+      const custom = join(root, "custom.conf");
+      writeFileSync(custom, "c = 3\n", "utf8");
+      expect(
+        resolveGhosttyConfigPath({
+          home: root,
+          platform: "darwin",
+          xdgConfigHome: xdg,
+          env: { GHOSTTY_CONFIG_PATH: custom },
+        })
+      ).toBe(custom);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it("reload hint mentions platform keybind", () => {
-    expect(ghosttyReloadHint("darwin")).toMatch(/cmd\+shift\+,/i);
+  it("reload hint says config+reload, not live OSC", () => {
+    expect(ghosttyReloadHint("darwin")).toMatch(/no aplica el fondo en vivo/i);
+    expect(ghosttyReloadHint("darwin")).toMatch(/⌘⇧,|cmd\+shift\+,/i);
     expect(ghosttyReloadHint("linux")).toMatch(/Ctrl\+Shift\+,/);
   });
 });

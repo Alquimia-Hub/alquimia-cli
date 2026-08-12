@@ -205,7 +205,7 @@ ESM (`"type": "module"`), sin dependencias de runtime (Vitest solo en dev), lice
 
 ## Changelog
 
-- **0.5.10** — `alquimia art`: multi-terminal (iTerm2, Kitty, Ghostty, WezTerm, Contour, Tilix, Terminology, Hyper, Tabby, Windows Terminal). Config patchers con bloques `>>> alquimia-art <<<`, art persistido en `~/.local/share/alquimia/art.png`. Honest UX donde no hay API (Alacritty, Terminal.app, VS Code, GNOME, Konsole, …). Tests con temp HOME.
+- **0.5.10** — `alquimia art`: multi-terminal (iTerm2, Kitty, Ghostty, WezTerm, Contour, Tilix, Terminology, Hyper, Tabby, Windows Terminal). Ghostty: bloque `# BEGIN/END alquimia-art` con keys 1.2+ (`background-image`, opacity 0.35, position/fit/repeat); paths App Support + XDG + `GHOSTTY_CONFIG_PATH`; reload requerido (no OSC). Art en `~/.local/share/alquimia/art.png`. Honest UX donde no hay API. Tests con temp HOME.
 - **0.5.9** — Auto-update silencioso al arrancar (check cacheado ~1h → cleanup global + `npm install -g` detachado). Evita `ENOTEMPTY` en Mac borrando `alquimia` / `.alquimia-*` bajo `npm root -g`. Flags/env: `--no-update`, `ALQUIMIA_NO_UPDATE`, skip en CI / sin TTY. Comando explícito `alquimia update`. Tests unitarios sin red.
 - **0.5.8** — `alquimia art`: fondo de terminal con brand art (iTerm2 / Kitty) + `--clear` / `--open` / `--path`.
 - **0.5.7** — Help: se quitó el bloque `Ejemplos` de la salida de ayuda. Fix: URLs de Discord scheduled-event de lunes y miércoles estaban intercambiadas.
@@ -225,7 +225,7 @@ Setear el fondo desde la CLI **no es universal**. `alquimia art` detecta la term
 |---|---|---|---|
 | **iTerm2** | macOS | OSC 1337 `SetBackgroundImageFile` | No (live) |
 | **Kitty** | macOS/Linux | `kitty @ set-background-image` | No (remote control) |
-| **Ghostty** | macOS/Linux | Config `background-image` (+ opacity/fit/position), bloque `>>> alquimia-art <<<` | Sí — ⌘⇧, / Ctrl+Shift+, |
+| **Ghostty** | macOS/Linux | Config write (`background-image` + opacity/fit/position/repeat), bloque `# BEGIN/END alquimia-art` — **no OSC** | Sí — menú o ⌘⇧, / Ctrl+Shift+, |
 | **WezTerm** | macOS/Linux | `~/.wezterm.lua` `window_background_image` (+ hsb) | Auto / Ctrl+Shift+R |
 | **Contour** | macOS/Linux | `contour.yml` `color_schemes.default.background_image` | Reiniciar ventana |
 | **Tilix** | Linux | `gsettings` `com.gexperts.Tilix.Settings background-image` | No (puede pedir transparencia en el profile) |

@@ -5,7 +5,11 @@ import {
   writeFileSync as fsWriteFileSync,
 } from "node:fs";
 
-/** Default line-comment markers for Ghostty / Contour YAML / generic configs. */
+/** Ghostty managed block (confirmed docs / UX). */
+export const GHOSTTY_BLOCK_BEGIN = "# BEGIN alquimia-art";
+export const GHOSTTY_BLOCK_END = "# END alquimia-art";
+
+/** Generic line-comment markers (Contour YAML, etc.). */
 export const BLOCK_BEGIN = "# >>> alquimia-art >>>";
 export const BLOCK_END = "# <<< alquimia-art <<<";
 

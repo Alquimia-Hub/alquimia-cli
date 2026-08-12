@@ -10,12 +10,15 @@ import { dirname, join } from "node:path";
 import {
   BLOCK_BEGIN,
   BLOCK_END,
+  GHOSTTY_BLOCK_BEGIN,
+  GHOSTTY_BLOCK_END,
   LUA_BLOCK_BEGIN,
   LUA_BLOCK_END,
   JS_BLOCK_BEGIN,
   JS_BLOCK_END,
   CSS_BLOCK_BEGIN,
   CSS_BLOCK_END,
+  LEGACY_GHOSTTY_MARKER,
   atomicWriteFile,
   clearConfigBlock,
   clearLegacyGhosttyMarkers,
@@ -23,18 +26,31 @@ import {
   patchConfigBlockAfter,
 } from "./config-block.js";
 
-const GHOSTTY_OPACITY = 0.25;
+/** Readable default for CLI brand art (Ghostty 1.2+). */
+export const GHOSTTY_DEFAULT_OPACITY = 0.35;
+
 const WEZTERM_BRIGHTNESS = 0.25;
 const CONTOUR_OPACITY = 0.25;
 const WT_OPACITY = 0.25;
 
 // ── Ghostty ──────────────────────────────────────────────────────────
 
+function hasGhosttyArtMarker(text) {
+  return (
+    text.includes(GHOSTTY_BLOCK_BEGIN) ||
+    text.includes(BLOCK_BEGIN) ||
+    text.includes(LEGACY_GHOSTTY_MARKER)
+  );
+}
+
 /**
+ * Candidate Ghostty config paths.
+ * Order: GHOSTTY_CONFIG_PATH → macOS Application Support → XDG ~/.config/ghostty.
  * @param {{
  *   home?: string,
  *   platform?: string,
  *   xdgConfigHome?: string | null,
+ *   env?: NodeJS.ProcessEnv,
  * }} [opts]
  * @returns {string[]}
  */
@@ -42,16 +58,17 @@ export function ghosttyConfigCandidates({
   home = homedir(),
   platform: osPlatform = platform(),
   xdgConfigHome = process.env.XDG_CONFIG_HOME,
+  env = process.env,
 } = {}) {
+  const paths = [];
+
+  const explicit = env.GHOSTTY_CONFIG_PATH && String(env.GHOSTTY_CONFIG_PATH).trim();
+  if (explicit) paths.push(explicit);
+
   const xdgRoot =
     xdgConfigHome && String(xdgConfigHome).trim()
       ? String(xdgConfigHome)
       : join(home, ".config");
-
-  const paths = [
-    join(xdgRoot, "ghostty", "config.ghostty"),
-    join(xdgRoot, "ghostty", "config"),
-  ];
 
   if (osPlatform === "darwin") {
     paths.push(
@@ -60,23 +77,31 @@ export function ghosttyConfigCandidates({
         "Library",
         "Application Support",
         "com.mitchellh.ghostty",
-        "config.ghostty"
+        "config"
       ),
       join(
         home,
         "Library",
         "Application Support",
         "com.mitchellh.ghostty",
-        "config"
+        "config.ghostty"
       ),
       join(home, "Library", "Application Support", "Ghostty", "config")
     );
   }
 
+  paths.push(
+    join(xdgRoot, "ghostty", "config"),
+    join(xdgRoot, "ghostty", "config.ghostty")
+  );
+
   return paths;
 }
 
 /**
+ * Prefer file that already has our managed block; else first existing candidate;
+ * else create under GHOSTTY_CONFIG_PATH / macOS App Support / XDG `config`.
+ * Creates parent dir when applying (via atomicWriteFile).
  * @param {object} [opts]
  * @returns {string}
  */
@@ -88,26 +113,35 @@ export function resolveGhosttyConfigPath(opts = {}) {
   for (const p of candidates) {
     if (!exists(p)) continue;
     try {
-      const text = read(p, "utf8");
-      if (text.includes(BLOCK_BEGIN) || text.includes("# alquimia-art")) {
-        return p;
-      }
+      if (hasGhosttyArtMarker(read(p, "utf8"))) return p;
     } catch {
       /* ignore */
     }
   }
 
-  const existing = candidates.filter((p) => exists(p));
-  if (existing.length > 0) return existing[existing.length - 1];
+  const existing = candidates.find((p) => exists(p));
+  if (existing) return existing;
 
-  const xdgRoot =
-    opts.xdgConfigHome && String(opts.xdgConfigHome).trim()
-      ? String(opts.xdgConfigHome)
-      : join(opts.home ?? homedir(), ".config");
-  return join(xdgRoot, "ghostty", "config");
+  // Nothing exists yet — create at first candidate (explicit env / macOS / XDG).
+  return candidates[0];
 }
 
 /**
+ * Strip all known Ghostty alquimia-art formats (current + legacy).
+ * @param {string} content
+ * @returns {string}
+ */
+export function clearGhosttyArtFromConfig(content) {
+  let base = clearLegacyGhosttyMarkers(content == null ? "" : String(content));
+  base = clearConfigBlock(base, GHOSTTY_BLOCK_BEGIN, GHOSTTY_BLOCK_END);
+  // Prior PR used >>> / <<< markers on Ghostty configs.
+  base = clearConfigBlock(base, BLOCK_BEGIN, BLOCK_END);
+  return base;
+}
+
+/**
+ * Idempotent Ghostty config patch (Ghostty ≥ 1.2.0 keys).
+ * Not live/OSC — user must reload Ghostty config after write.
  * @param {string} content
  * @param {string} imagePath
  * @param {{ opacity?: number }} [opts]
@@ -116,32 +150,24 @@ export function resolveGhosttyConfigPath(opts = {}) {
 export function patchGhosttyConfigContent(
   content,
   imagePath,
-  { opacity = GHOSTTY_OPACITY } = {}
+  { opacity = GHOSTTY_DEFAULT_OPACITY } = {}
 ) {
-  let base = clearLegacyGhosttyMarkers(content == null ? "" : String(content));
-  base = clearConfigBlock(base, BLOCK_BEGIN, BLOCK_END);
-  return patchConfigBlock(base, BLOCK_BEGIN, BLOCK_END, [
+  const base = clearGhosttyArtFromConfig(content);
+  return patchConfigBlock(base, GHOSTTY_BLOCK_BEGIN, GHOSTTY_BLOCK_END, [
     `background-image = ${imagePath}`,
     `background-image-opacity = ${opacity}`,
-    "background-image-fit = contain",
     "background-image-position = center",
+    "background-image-fit = contain",
+    "background-image-repeat = false",
   ]);
 }
 
-/**
- * @param {string} content
- * @returns {string}
- */
-export function clearGhosttyArtFromConfig(content) {
-  let base = clearLegacyGhosttyMarkers(content == null ? "" : String(content));
-  return clearConfigBlock(base, BLOCK_BEGIN, BLOCK_END);
-}
-
 export function ghosttyReloadHint(osPlatform = platform()) {
+  // Ghostty has no live OSC background path — config write + reload only.
   if (osPlatform === "darwin") {
-    return "Recargá Ghostty: ⌘⇧, (cmd+shift+,) o reiniciá la app.";
+    return "Ghostty no aplica el fondo en vivo: recargá la config (menú o ⌘⇧,) o reiniciá Ghostty.";
   }
-  return "Recargá Ghostty: Ctrl+Shift+, o reiniciá la app.";
+  return "Ghostty no aplica el fondo en vivo: recargá la config (menú o Ctrl+Shift+,) o reiniciá Ghostty.";
 }
 
 /**
@@ -155,8 +181,9 @@ export function setGhosttyBackground(imagePath, opts = {}) {
   try {
     const previous = exists(configPath) ? read(configPath, "utf8") : "";
     const next = patchGhosttyConfigContent(previous, imagePath, {
-      opacity: opts.opacity ?? GHOSTTY_OPACITY,
+      opacity: opts.opacity ?? GHOSTTY_DEFAULT_OPACITY,
     });
+    // atomicWriteFile creates parent dirs when the file is missing.
     atomicWriteFile(configPath, next, opts);
     return {
       ok: true,
@@ -183,8 +210,7 @@ export function clearGhosttyBackground(opts = {}) {
   const targets = candidates.filter((p) => {
     if (!exists(p)) return false;
     try {
-      const t = read(p, "utf8");
-      return t.includes(BLOCK_BEGIN) || t.includes("# alquimia-art");
+      return hasGhosttyArtMarker(read(p, "utf8"));
     } catch {
       return false;
     }
