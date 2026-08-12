@@ -30,6 +30,12 @@ export const commands = [
       "Catálogo de tools; en TTY: sección → tool → acción (abrir docs o instalar). Esc/q vuelve un nivel",
   },
   {
+    name: "art",
+    usage: "art [--clear|clear] [--open] [--path]",
+    blurb:
+      "Fondo de terminal con el brand art (iTerm2/Kitty); `--clear` / `clear` lo saca, `--open` abre el PNG, `--path` imprime la ruta",
+  },
+  {
     name: "open",
     usage: "open <red>",
     blurb:

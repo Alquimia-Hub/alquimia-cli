@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { renderBanner } from "./banner.js";
+import { runArt } from "./art.js";
 import { commandNames, formatCommandsBlock } from "./commands.js";
 import {
   community,
@@ -59,6 +60,7 @@ function helpText({ noBanner = false } = {}) {
     pad("--yes", "Saltear confirmación de install (tools)"),
     pad("--no-banner", "Ocultá el banner ASCII"),
     pad("--no-interactive", "Sin menú interactivo (events / join / tools)"),
+    pad("--path", "Imprimir path del brand art (art)"),
     "",
     style.bold("Redes para open / join"),
     `  ${linkOrder.map((k) => style.cyan(k)).join(" · ")}`,
@@ -1034,6 +1036,17 @@ export async function run(argv) {
         noInteractive || flags.has("--list") || rest.includes("--list"),
       listOnly: flags.has("--list") || rest.includes("--list"),
     });
+    return;
+  }
+
+  if (cmd === "art") {
+    const clear =
+      flags.has("--clear") ||
+      rest.includes("--clear") ||
+      rest.includes("clear");
+    const open = flags.has("--open") || rest.includes("--open");
+    const pathOnly = flags.has("--path") || rest.includes("--path");
+    await runArt({ clear, open, pathOnly });
     return;
   }
 
