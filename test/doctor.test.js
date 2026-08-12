@@ -94,10 +94,10 @@ describe("collectDoctorReport / formatDoctorReport", () => {
         home,
         stdoutIsTTY: true,
         nodeVersion: "v22.0.0",
-        version: "0.5.14",
+        version: "0.5.15",
         existsSync: () => false,
       });
-      expect(report.alquimia.version).toBe("0.5.14");
+      expect(report.alquimia.version).toBe("0.5.15");
       expect(report.node.version).toBe("v22.0.0");
       expect(report.terminal.id).toBe("ghostty");
       expect(report.terminal.artSupported).toBe(true);
@@ -108,7 +108,7 @@ describe("collectDoctorReport / formatDoctorReport", () => {
 
       const text = formatDoctorReport(report).join("\n");
       expect(text).toMatch(/Alquimia doctor/);
-      expect(text).toMatch(/0\.5\.14/);
+      expect(text).toMatch(/0\.5\.15/);
       expect(text).toMatch(/Ghostty/);
       expect(text).toMatch(/Auto-update/);
     } finally {

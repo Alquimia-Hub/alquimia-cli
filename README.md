@@ -33,7 +33,7 @@ Comandos
   open        Abrí una red puntual en el navegador (`open discord`, `open x`, etc.)
   update      Actualizá la CLI ahora (también se auto-actualiza en segundo plano al arrancar)
   completion  Imprimí completion zsh|bash|fish
-  help        Ayuda completa con opciones y alias
+  help        Mostrá esta ayuda
   version     Versión instalada de la CLI
 ```
 
@@ -239,6 +239,7 @@ ESM (`"type": "module"`), sin dependencias de runtime (Vitest solo en dev), lice
 
 ## Changelog
 
+- **0.5.15** — Help global más corto: tagline + Uso + Comandos (sin bloques Opciones / redes / secciones de tools / Auto-update). Flags y features siguen igual; tip de per-command help no se agregó (aún no hay `alquimia <cmd> --help`). Sin deps nuevas.
 - **0.5.14** — `alquimia doctor` (diagnóstico + `--json`). `art --opacity` / `--fit` con prefs en `~/.local/share/alquimia/art-prefs.json` (`--clear` mantiene prefs; re-aplicar reescribe el bloque Ghostty). Completions zsh/bash/fish vía `alquimia completion <shell>`. Filtro type-to-search en el picker de `tools`. Sin deps nuevas.
 - **0.5.13** — Ghostty `alquimia art`: `background-image-fit = cover` (llena la terminal; puede recortar bordes) + opacity default **0.28** (texto legible en dark mode). Re-aplicar `alquimia art` reescribe cover+0.28 (no deja `contain`/0.55 viejos). WezTerm: `config.background` `Cover` + brightness `0.18`. Contour/WT opacity `0.2`; Hyper scrim `0.72`; Tabby CSS opacity `0.2`. Si alguna versión de Ghostty letterboxea con `cover`, podés probar `background-image-fit = stretch` a mano. Sin deps nuevas.
 - **0.5.12** — Ghostty `alquimia art`: auto-reload tras escribir/limpiar config (`SIGUSR2` / macOS ⌘⇧,). `--clear` **siempre** manda reload (aunque no haya bloque en el archivo) y limpia `background-image` huérfano hacia `~/.local/share/alquimia/art.png`. Opacity default `0.55`. **Terminal.app**: soporte por perfil `Alquimia` (bookmark via Swift + switch AppleScript; puede pedir Automatización/Accesibilidad). Tests mockeados; sin deps nuevas.
