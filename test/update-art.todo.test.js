@@ -33,35 +33,13 @@ describe("update.js / art.js (optional — skip if missing)", () => {
     "art.detectTerminal returns a known family",
     async () => {
       const { detectTerminal } = await import("../src/art.js");
-      const prev = {
-        ITERM_SESSION_ID: process.env.ITERM_SESSION_ID,
-        KITTY_WINDOW_ID: process.env.KITTY_WINDOW_ID,
-        WEZTERM_EXECUTABLE: process.env.WEZTERM_EXECUTABLE,
-        WEZTERM_PANE: process.env.WEZTERM_PANE,
-        TERM_PROGRAM: process.env.TERM_PROGRAM,
-        TERM: process.env.TERM,
-      };
-      try {
-        delete process.env.ITERM_SESSION_ID;
-        delete process.env.KITTY_WINDOW_ID;
-        delete process.env.WEZTERM_EXECUTABLE;
-        delete process.env.WEZTERM_PANE;
-        process.env.TERM_PROGRAM = "";
-        process.env.TERM = "xterm-256color";
-        expect(detectTerminal()).toBe("unsupported");
-
-        process.env.ITERM_SESSION_ID = "w0t0p0:test";
-        expect(detectTerminal()).toBe("iterm2");
-        delete process.env.ITERM_SESSION_ID;
-
-        process.env.KITTY_WINDOW_ID = "1";
-        expect(detectTerminal()).toBe("kitty");
-      } finally {
-        for (const [k, v] of Object.entries(prev)) {
-          if (v === undefined) delete process.env[k];
-          else process.env[k] = v;
-        }
-      }
+      // Prefer pure detectTerminal(env) so multi-terminal signals don't leak from the host.
+      expect(
+        detectTerminal({ TERM_PROGRAM: "", TERM: "xterm-256color" })
+      ).toBe("unsupported");
+      expect(detectTerminal({ ITERM_SESSION_ID: "w0t0p0:test" })).toBe("iterm2");
+      expect(detectTerminal({ KITTY_WINDOW_ID: "1" })).toBe("kitty");
+      expect(detectTerminal({ TERM_PROGRAM: "ghostty" })).toBe("ghostty");
     }
   );
 });
