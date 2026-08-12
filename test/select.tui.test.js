@@ -31,7 +31,165 @@ function countOccurrences(haystack, needle) {
 }
 
 describe("select() TUI with fake TTY", () => {
-  it("Enter returns the selected index; q cancels with null", async () => {
+  it("empty items → null (negative)", async () => {
+    await expect(select([])).resolves.toBeNull();
+    await expect(select(null)).resolves.toBeNull();
+    await expect(select(undefined)).resolves.toBeNull();
+  });
+
+  it("non-TTY stdin/stdout → null (negative)", async () => {
+    const stdin = createFakeStdin();
+    stdin.isTTY = false;
+    const stdout = createFakeStdout(80);
+    await expect(
+      select(["A"], { stdin, stdout })
+    ).resolves.toBeNull();
+
+    const stdin2 = createFakeStdin();
+    const stdout2 = createFakeStdout(80);
+    stdout2.isTTY = false;
+    await expect(
+      select(["A"], { stdin: stdin2, stdout: stdout2 })
+    ).resolves.toBeNull();
+
+    const stdin3 = createFakeStdin();
+    delete stdin3.setRawMode;
+    const stdout3 = createFakeStdout(80);
+    await expect(
+      select(["A"], { stdin: stdin3, stdout: stdout3 })
+    ).resolves.toBeNull();
+  });
+
+  it("Enter selects initialIndex (positive)", async () => {
+    const stdin = createFakeStdin();
+    const stdout = createFakeStdout(80);
+    const p = select(["Uno", "Dos", "Tres"], {
+      stdin,
+      stdout,
+      initialIndex: 2,
+      hint: HINT,
+    });
+    stdin.emit("data", Buffer.from(KEY.enter));
+    await expect(p).resolves.toBe(2);
+  });
+
+  it("Enter with default initialIndex 0", async () => {
+    const stdin = createFakeStdin();
+    const stdout = createFakeStdout(80);
+    const p = select(["Uno", "Dos"], { stdin, stdout, hint: HINT });
+    stdin.emit("data", Buffer.from(KEY.enter));
+    await expect(p).resolves.toBe(0);
+  });
+
+  it("clamps initialIndex into range", async () => {
+    const stdin = createFakeStdin();
+    const stdout = createFakeStdout(80);
+    const p = select(["A", "B"], {
+      stdin,
+      stdout,
+      initialIndex: 99,
+      hint: HINT,
+    });
+    stdin.emit("data", Buffer.from(KEY.enter));
+    await expect(p).resolves.toBe(1);
+
+    const stdin2 = createFakeStdin();
+    const stdout2 = createFakeStdout(80);
+    const p2 = select(["A", "B"], {
+      stdin: stdin2,
+      stdout: stdout2,
+      initialIndex: -3,
+      hint: HINT,
+    });
+    stdin2.emit("data", Buffer.from(KEY.enter));
+    await expect(p2).resolves.toBe(0);
+  });
+
+  it("↓ wraps from last to first", async () => {
+    const stdin = createFakeStdin();
+    const stdout = createFakeStdout(80);
+    const p = select(["A", "B", "C"], {
+      stdin,
+      stdout,
+      initialIndex: 2,
+      hint: HINT,
+    });
+    stdin.emit("data", Buffer.from(KEY.down));
+    stdin.emit("data", Buffer.from(KEY.enter));
+    await expect(p).resolves.toBe(0);
+  });
+
+  it("↑ wraps from first to last", async () => {
+    const stdin = createFakeStdin();
+    const stdout = createFakeStdout(80);
+    const p = select(["A", "B", "C"], { stdin, stdout, hint: HINT });
+    stdin.emit("data", Buffer.from(KEY.up));
+    stdin.emit("data", Buffer.from(KEY.enter));
+    await expect(p).resolves.toBe(2);
+  });
+
+  it("alternate CSI forms ESC O A/B also navigate", async () => {
+    const stdin = createFakeStdin();
+    const stdout = createFakeStdout(80);
+    const p = select(["A", "B", "C"], { stdin, stdout, hint: HINT });
+    stdin.emit("data", Buffer.from(KEY.downAlt)); // ESC O B
+    stdin.emit("data", Buffer.from(KEY.enter));
+    await expect(p).resolves.toBe(1);
+  });
+
+  it("q / Esc / Ctrl+C → null (cancel)", async () => {
+    {
+      const stdin = createFakeStdin();
+      const stdout = createFakeStdout(80);
+      const p = select(["Uno", "Dos"], { stdin, stdout });
+      stdin.emit("data", Buffer.from(KEY.q));
+      await expect(p).resolves.toBeNull();
+    }
+    {
+      const stdin = createFakeStdin();
+      const stdout = createFakeStdout(80);
+      const p = select(["Uno", "Dos"], { stdin, stdout });
+      stdin.emit("data", Buffer.from("Q"));
+      await expect(p).resolves.toBeNull();
+    }
+    {
+      const stdin = createFakeStdin();
+      const stdout = createFakeStdout(80);
+      const p = select(["Uno", "Dos"], { stdin, stdout });
+      stdin.emit("data", Buffer.from(KEY.esc));
+      await expect(p).resolves.toBeNull();
+    }
+    {
+      const stdin = createFakeStdin();
+      const stdout = createFakeStdout(80);
+      const p = select(["Uno", "Dos"], { stdin, stdout });
+      stdin.emit("data", Buffer.from(KEY.ctrlC));
+      await expect(p).resolves.toBeNull();
+    }
+  });
+
+  it("custom hint and renderItem appear in the frame", async () => {
+    const customHint = "custom-hint-xyz";
+    const term = new VisibleTerminal(80);
+    const stdin = createFakeStdin();
+    const stdout = createFakeStdout(80, term);
+    const p = select(["Alpha", "Beta"], {
+      stdin,
+      stdout,
+      hint: customHint,
+      renderItem: (item, _i, selected) =>
+        selected ? `>> ${item} <<` : `-- ${item}`,
+    });
+    const mid = term.visibleText();
+    expect(mid).toContain(customHint);
+    expect(mid).toContain(">> Alpha <<");
+    expect(mid).toContain("-- Beta");
+    expect(mid).not.toContain("❯");
+    stdin.emit("data", Buffer.from(KEY.enter));
+    await expect(p).resolves.toBe(0);
+  });
+
+  it("Enter returns the selected index after ↓", async () => {
     const stdin = createFakeStdin();
     const stdout = createFakeStdout(80);
     const p = select(["Uno", "Dos", "Tres"], {
@@ -42,21 +200,6 @@ describe("select() TUI with fake TTY", () => {
     stdin.emit("data", Buffer.from(KEY.down));
     stdin.emit("data", Buffer.from(KEY.enter));
     await expect(p).resolves.toBe(1);
-
-    const stdin2 = createFakeStdin();
-    const stdout2 = createFakeStdout(80);
-    const p2 = select(["Uno", "Dos"], { stdin: stdin2, stdout: stdout2 });
-    stdin2.emit("data", Buffer.from(KEY.q));
-    await expect(p2).resolves.toBeNull();
-  });
-
-  it("↑ wraps around the list", async () => {
-    const stdin = createFakeStdin();
-    const stdout = createFakeStdout(80);
-    const p = select(["A", "B", "C"], { stdin, stdout, hint: HINT });
-    stdin.emit("data", Buffer.from(KEY.up));
-    stdin.emit("data", Buffer.from(KEY.enter));
-    await expect(p).resolves.toBe(2);
   });
 
   it("does not use DECSC/DECRC (ESC 7 / ESC 8) for redraw", async () => {
@@ -74,7 +217,7 @@ describe("select() TUI with fake TTY", () => {
     expect(raw).toMatch(/\x1b\[\d+A\r\x1b\[0J/);
   });
 
-  it("regression: several ↓ redraws never stack full menus (cols 80)", async () => {
+  it("stacking regression: many ↓ (12+) still one frame / no unbounded hints", async () => {
     const labels = ["Terminal", "Agents", "Skills", "Design", "Testing"];
     const term = new VisibleTerminal(80);
     const stdin = createFakeStdin();
@@ -107,7 +250,7 @@ describe("select() TUI with fake TTY", () => {
     expect(clears.length).toBeGreaterThanOrEqual(12); // 12 downs (+ cleanup)
   });
 
-  it("regression: narrow columns (~40) with wrapping blurbs do not stack", async () => {
+  it("narrow columns (40) with multi-line name+blurb — redraw stays clean", async () => {
     const labels = ["Herramientas de terminal", "Agents", "Skills"];
     const cols = 40;
     const term = new VisibleTerminal(cols);
@@ -167,5 +310,39 @@ describe("select() TUI with fake TTY", () => {
 
     stdin.emit("data", Buffer.from(KEY.enter));
     await expect(p).resolves.toBe(2);
+  });
+
+  it("rapid redraw does not throw", async () => {
+    const stdin = createFakeStdin();
+    const stdout = createFakeStdout(80);
+    const p = select(["A", "B", "C", "D", "E"], {
+      stdin,
+      stdout,
+      hint: HINT,
+      renderItem: sectionRenderItem,
+    });
+
+    expect(() => {
+      for (let i = 0; i < 40; i++) {
+        stdin.emit("data", Buffer.from(i % 2 === 0 ? KEY.down : KEY.up));
+      }
+    }).not.toThrow();
+
+    stdin.emit("data", Buffer.from(KEY.enter));
+    await expect(p).resolves.toBeTypeOf("number");
+  });
+
+  it("resize while open redraws without throwing", async () => {
+    const stdin = createFakeStdin();
+    const stdout = createFakeStdout(80);
+    const p = select(["A", "B"], { stdin, stdout, hint: HINT });
+    expect(() => {
+      stdout.columns = 40;
+      stdout.emit("resize");
+      stdout.columns = 120;
+      stdout.emit("resize");
+    }).not.toThrow();
+    stdin.emit("data", Buffer.from(KEY.enter));
+    await expect(p).resolves.toBe(0);
   });
 });
