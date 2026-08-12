@@ -21,7 +21,7 @@ describe("CLI smoke — version", () => {
     const r = runCli(["version"]);
     expect(r.status).toBe(0);
     expect(r.stdout.trim()).toBe(pkg.version);
-    expect(pkg.version).toBe("0.5.14");
+    expect(pkg.version).toBe("0.5.15");
   });
 
   it("-v / --version match version command", () => {
@@ -37,12 +37,17 @@ describe("CLI smoke — version", () => {
 });
 
 describe("CLI smoke — help", () => {
-  it("help / -h have Comandos and must NOT contain Ejemplos", () => {
+  it("help / -h have Uso + Comandos and must NOT dump verbose sections", () => {
     for (const args of [["help"], ["-h"], ["--help"], []]) {
       const r = runCli(args);
       expect(r.status, String(args)).toBe(0);
+      expect(r.stdout, String(args)).toMatch(/Uso/);
       expect(r.stdout, String(args)).toMatch(/Comandos/);
       expect(r.stdout, String(args)).not.toMatch(/Ejemplos/);
+      expect(r.stdout, String(args)).not.toMatch(/^Opciones\b/m);
+      expect(r.stdout, String(args)).not.toMatch(/Redes para open/);
+      expect(r.stdout, String(args)).not.toMatch(/Secciones de tools/);
+      expect(r.stdout, String(args)).not.toMatch(/^Auto-update\b/m);
     }
   });
 });
@@ -207,7 +212,7 @@ describe("CLI smoke — doctor", () => {
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/Alquimia doctor/);
     expect(r.stdout).toMatch(/Node/);
-    expect(r.stdout).toMatch(/0\.5\.14/);
+    expect(r.stdout).toMatch(/0\.5\.15/);
   });
 
   it("doctor --json has expected keys", () => {
@@ -247,7 +252,5 @@ describe("CLI smoke — help mentions new commands", () => {
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/\bdoctor\b/);
     expect(r.stdout).toMatch(/\bcompletion\b/);
-    expect(r.stdout).toMatch(/--opacity/);
-    expect(r.stdout).toMatch(/--fit/);
   });
 });

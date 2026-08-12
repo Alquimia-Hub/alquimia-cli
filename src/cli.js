@@ -48,8 +48,6 @@ function withBanner(lines, { noBanner = false } = {}) {
 }
 
 function helpText({ noBanner = false } = {}) {
-  const pad = (name, desc) => `  ${style.cyan(name.padEnd(18))} ${desc}`;
-
   return [
     bannerBlock({ noBanner }).trimEnd(),
     "",
@@ -59,34 +57,6 @@ function helpText({ noBanner = false } = {}) {
     `  alquimia ${style.dim("[comando] [opciones]")}`,
     "",
     ...formatCommandsBlock({ colored: true, useUsage: true }),
-    "",
-    style.bold("Opciones"),
-    pad("-h, --help", "Ayuda"),
-    pad("-v, --version", "Versión"),
-    pad("--json", "Salida JSON (info, join, events, tools, doctor)"),
-    pad("--yes", "Saltear confirmación de install (tools)"),
-    pad("--no-banner", "Ocultá el banner ASCII"),
-    pad("--no-interactive", "Sin menú interactivo (events / join / tools)"),
-    pad("--path", "Imprimir path del brand art (art)"),
-    pad("--opacity <0..1>", "Opacidad del fondo (art; se guarda)"),
-    pad("--fit <mode>", "cover|contain|stretch (art; se guarda)"),
-    pad("--clear", "Sacar fondo (art; mantiene prefs)"),
-    pad("--no-update", "Sin auto-update al arrancar"),
-    "",
-    style.bold("Redes para open / join"),
-    `  ${linkOrder.map((k) => style.cyan(k)).join(" · ")}`,
-    style.dim("  alias: site→web, x→twitter, gh→github, wa→whatsapp"),
-    "",
-    style.bold("Secciones de tools"),
-    `  ${toolSections.map((s) => style.cyan(s.id)).join(" · ")}`,
-    "",
-    style.bold("Auto-update"),
-    style.dim(
-      "  Al arrancar (TTY), chequea GitHub ~1 vez/hora y actualiza en segundo plano."
-    ),
-    style.dim(
-      "  Desactivá con --no-update, ALQUIMIA_NO_UPDATE=1, o en CI / sin TTY."
-    ),
     "",
   ].join("\n");
 }
