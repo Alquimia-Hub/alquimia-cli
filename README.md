@@ -7,7 +7,7 @@ CLI de la comunidad [Alquimia](https://alquimia.community/) — IA, automatizaci
 Desde el home actual del repo:
 
 ```bash
-npm install -g github:Nicolopez603/alquimia-cli
+npm install -g github:Alquimia-Hub/alquimia-cli
 ```
 
 Requiere **Node.js 18+**.
@@ -15,7 +15,7 @@ Requiere **Node.js 18+**.
 Si en Mac ves `ENOTEMPTY` al renombrar `/opt/homebrew/lib/node_modules/alquimia`, limpiá e instalá de nuevo:
 
 ```bash
-rm -rf "$(npm root -g)/alquimia" "$(npm root -g)"/.alquimia-* && npm install -g github:Nicolopez603/alquimia-cli
+rm -rf "$(npm root -g)/alquimia" "$(npm root -g)"/.alquimia-* && npm install -g github:Alquimia-Hub/alquimia-cli
 ```
 
 (`alquimia update` y el auto-update hacen ese cleanup solos antes del `npm install -g`.)
@@ -41,7 +41,7 @@ Empezá con `alquimia info` o `alquimia help`.
 
 ### Auto-update
 
-Al arrancar en una terminal interactiva (TTY), `alquimia` chequea ~1 vez por hora si hay una versión más nueva en GitHub y, si hace falta, lanza `npm install -g github:Nicolopez603/alquimia-cli` en **segundo plano**. El comando actual sigue con la versión ya cargada; la próxima invocación usa la nueva.
+Al arrancar en una terminal interactiva (TTY), `alquimia` chequea ~1 vez por hora si hay una versión más nueva en GitHub y, si hace falta, lanza `npm install -g github:Alquimia-Hub/alquimia-cli` en **segundo plano**. El comando actual sigue con la versión ya cargada; la próxima invocación usa la nueva.
 
 Antes del install borra `(npm root -g)/alquimia` y los leftovers `(npm root -g)/.alquimia-*` para evitar el `ENOTEMPTY` típico de Homebrew en Mac.
 
@@ -207,7 +207,7 @@ alquimia update
 ## Development
 
 ```bash
-git clone https://github.com/Nicolopez603/alquimia-cli.git
+git clone https://github.com/Alquimia-Hub/alquimia-cli.git
 cd alquimia-cli
 node bin/alquimia.js info
 node bin/alquimia.js open discord

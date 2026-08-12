@@ -22,9 +22,9 @@ export const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 export const UPDATE_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
 
 export const REMOTE_PACKAGE_URL =
-  "https://raw.githubusercontent.com/Nicolopez603/alquimia-cli/master/package.json";
+  "https://raw.githubusercontent.com/Alquimia-Hub/alquimia-cli/master/package.json";
 
-export const INSTALL_SPEC = "github:Nicolopez603/alquimia-cli";
+export const INSTALL_SPEC = "github:Alquimia-Hub/alquimia-cli";
 
 /** Common Homebrew / Intel Mac npm global roots when `npm root -g` fails. */
 export const NPM_GLOBAL_ROOT_FALLBACKS = [

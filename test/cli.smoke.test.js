@@ -21,7 +21,7 @@ describe("CLI smoke — version", () => {
     const r = runCli(["version"]);
     expect(r.status).toBe(0);
     expect(r.stdout.trim()).toBe(pkg.version);
-    expect(pkg.version).toBe("0.5.15");
+    expect(pkg.version).toBe("0.5.16");
   });
 
   it("-v / --version match version command", () => {

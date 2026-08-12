@@ -335,7 +335,7 @@ describe("maybeAutoUpdate (mocked fs/fetch/spawn)", () => {
     expect(spawns[0].args).toEqual([
       "install",
       "-g",
-      "github:Nicolopez603/alquimia-cli",
+      "github:Alquimia-Hub/alquimia-cli",
     ]);
     expect(notified).toEqual(["Actualizando Alquimia en segundo plano…"]);
     const cache = readCache(cachePath);
@@ -451,7 +451,7 @@ describe("spawnBackgroundUpdate", () => {
       expect(ok).toBe(true);
       expect(calls).toHaveLength(1);
       expect(calls[0].opts.detached).toBe(true);
-      expect(calls[0].args[2]).toBe("github:Nicolopez603/alquimia-cli");
+      expect(calls[0].args[2]).toBe("github:Alquimia-Hub/alquimia-cli");
       expect(existsSync(join(npmRoot, "alquimia"))).toBe(false);
       expect(existsSync(join(npmRoot, ".alquimia-leftover"))).toBe(false);
       expect(readFileSync(logPath, "utf8")).toMatch(/auto-update/);
