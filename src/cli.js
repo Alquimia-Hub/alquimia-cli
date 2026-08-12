@@ -26,6 +26,11 @@ import {
   toolSections,
   toolsCatalogPayload,
 } from "./tools.js";
+import {
+  isAutoUpdateDisabled,
+  maybeAutoUpdate,
+  runUpdateCommand,
+} from "./update.js";
 import { getVersion } from "./version.js";
 
 function bannerBlock({ noBanner = false } = {}) {
@@ -61,6 +66,7 @@ function helpText({ noBanner = false } = {}) {
     pad("--no-banner", "Ocultá el banner ASCII"),
     pad("--no-interactive", "Sin menú interactivo (events / join / tools)"),
     pad("--path", "Imprimir path del brand art (art)"),
+    pad("--no-update", "Sin auto-update al arrancar"),
     "",
     style.bold("Redes para open / join"),
     `  ${linkOrder.map((k) => style.cyan(k)).join(" · ")}`,
@@ -68,6 +74,14 @@ function helpText({ noBanner = false } = {}) {
     "",
     style.bold("Secciones de tools"),
     `  ${toolSections.map((s) => style.cyan(s.id)).join(" · ")}`,
+    "",
+    style.bold("Auto-update"),
+    style.dim(
+      "  Al arrancar (TTY), chequea GitHub ~1 vez/hora y actualiza en segundo plano."
+    ),
+    style.dim(
+      "  Desactivá con --no-update, ALQUIMIA_NO_UPDATE=1, o en CI / sin TTY."
+    ),
     "",
   ].join("\n");
 }
@@ -972,6 +986,29 @@ export async function run(argv) {
   const json = flags.has("--json");
   const noInteractive = flags.has("--no-interactive");
   const yes = flags.has("--yes") || flags.has("-y");
+  const [cmd, ...rest] = positionals;
+
+  // Explicit update: foreground install (skips silent auto-update).
+  if (cmd === "update") {
+    await runUpdateCommand();
+    return;
+  }
+
+  // Silent auto-update: short network check (cached ~1h); never waits for npm.
+  // Skipped for --no-update / ALQUIMIA_NO_UPDATE / CI / non-TTY.
+  if (
+    !isAutoUpdateDisabled({
+      argv,
+      env: process.env,
+      stdoutIsTTY: Boolean(process.stdout.isTTY),
+    })
+  ) {
+    try {
+      await maybeAutoUpdate();
+    } catch {
+      // Never block the user's command on update failures.
+    }
+  }
 
   if (flags.has("-h") || flags.has("--help")) {
     console.log(helpText({ noBanner }));
@@ -982,8 +1019,6 @@ export async function run(argv) {
     console.log(getVersion());
     return;
   }
-
-  const [cmd, ...rest] = positionals;
 
   if (!cmd) {
     console.log(helpText({ noBanner }));

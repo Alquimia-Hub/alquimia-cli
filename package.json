@@ -1,6 +1,6 @@
 {
   "name": "alquimia",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "description": "CLI de la comunidad Alquimia \u2014 IA, automatizaci\u00f3n y productividad",
   "bin": {
     "alquimia": "bin/alquimia.js"

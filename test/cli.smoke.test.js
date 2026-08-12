@@ -21,7 +21,7 @@ describe("CLI smoke", () => {
     const r = runCli(["version"]);
     expect(r.status).toBe(0);
     expect(r.stdout.trim()).toBe(pkg.version);
-    expect(pkg.version).toBe("0.5.7");
+    expect(pkg.version).toBe("0.5.9");
   });
 
   it("tools --json exits 0, parses, has no gratis / by-the-way-tests", () => {

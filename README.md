@@ -12,6 +12,14 @@ npm install -g github:Nicolopez603/alquimia-cli
 
 Requiere **Node.js 18+**.
 
+Si en Mac ves `ENOTEMPTY` al renombrar `/opt/homebrew/lib/node_modules/alquimia`, limpiá e instalá de nuevo:
+
+```bash
+rm -rf "$(npm root -g)/alquimia" "$(npm root -g)"/.alquimia-* && npm install -g github:Nicolopez603/alquimia-cli
+```
+
+(`alquimia update` y el auto-update hacen ese cleanup solos antes del `npm install -g`.)
+
 Después del install vas a ver un tip con los comandos. Resumen (fuente: `src/commands.js`):
 
 ```
@@ -21,11 +29,29 @@ Comandos
   events   Calls de lun/mié 17:00 ARG; en TTY elegí con ↑↓ y Enter abre el evento en Discord
   tools    Catálogo de tools; en TTY: sección → tool → acción (abrir docs o instalar). Esc/q vuelve un nivel
   open     Abrí una red puntual en el navegador (`open discord`, `open x`, etc.)
+  art      Fondo de terminal con el brand art (iTerm2/Kitty); `--clear` / `clear` lo saca
+  update   Actualizá la CLI ahora (también se auto-actualiza en segundo plano al arrancar)
   help     Ayuda completa con opciones y alias
   version  Versión instalada de la CLI
 ```
 
 Empezá con `alquimia info` o `alquimia help`.
+
+### Auto-update
+
+Al arrancar en una terminal interactiva (TTY), `alquimia` chequea ~1 vez por hora si hay una versión más nueva en GitHub y, si hace falta, lanza `npm install -g github:Nicolopez603/alquimia-cli` en **segundo plano**. El comando actual sigue con la versión ya cargada; la próxima invocación usa la nueva.
+
+Antes del install borra `(npm root -g)/alquimia` y los leftovers `(npm root -g)/.alquimia-*` para evitar el `ENOTEMPTY` típico de Homebrew en Mac.
+
+- Mensaje único (dim): `Actualizando Alquimia en segundo plano…`
+- Cache / log: `~/.alquimia/update-cache.json` y `~/.alquimia/update.log`
+- Desactivá con `--no-update`, `ALQUIMIA_NO_UPDATE=1`, o automáticamente en `CI=true` / sin TTY
+
+Para forzar la actualización en primer plano:
+
+```bash
+alquimia update
+```
 
 ## Usage
 
@@ -36,7 +62,7 @@ alquimia
 alquimia --help
 ```
 
-Usá `--no-banner` en `help` / `info` / `join` / `events` / `tools` si preferís omitirlo.
+Usá `--no-banner` en `help` / `info` / `join` / `events` / `tools` si preferís omitirlo. Usá `--no-update` (o `ALQUIMIA_NO_UPDATE=1`) para saltear el auto-update.
 
 ### info
 
@@ -136,6 +162,14 @@ alquimia --version
 alquimia version
 ```
 
+### update
+
+Reinstalá la CLI desde GitHub en primer plano (también corre sola en segundo plano al arrancar; ver Auto-update arriba):
+
+```bash
+alquimia update
+```
+
 ## Development
 
 ```bash
@@ -163,14 +197,16 @@ npm test          # vitest run (unit + fake-TTY picker + CLI smoke)
 npm run test:watch
 ```
 
-Cubre `visualLineCount` / anchos, regresión de stacking del picker (`select` con stdin/stdout fake) y smoke de `tools --list` / `--json` / `version`.
+Cubre `visualLineCount` / anchos, regresión de stacking del picker (`select` con stdin/stdout fake), helpers de auto-update (semver + cache, sin red) y smoke de `tools --list` / `--json` / `version`.
 
-Links, menú de `join` y agenda de `events` viven centralizados en `src/community.js` (incl. URLs de scheduled events de Discord). El catálogo de `tools` está en `src/tools.js`. El selector con flechas (`events` y `tools`) está en `src/select.js` (reutilizable). La lista de comandos + blurbs (help, `info`, postinstall y este README) está en `src/commands.js`. El banner ASCII está en `src/banner.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
+Links, menú de `join` y agenda de `events` viven centralizados en `src/community.js` (incl. URLs de scheduled events de Discord). El catálogo de `tools` está en `src/tools.js`. El selector con flechas (`events` y `tools`) está en `src/select.js` (reutilizable). La lista de comandos + blurbs (help, `info`, postinstall y este README) está en `src/commands.js`. El auto-update silencioso está en `src/update.js`. El banner ASCII está en `src/banner.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
 
 ESM (`"type": "module"`), sin dependencias de runtime (Vitest solo en dev), licencia MIT.
 
 ## Changelog
 
+- **0.5.9** — Auto-update silencioso al arrancar (check cacheado ~1h → cleanup global + `npm install -g` detachado). Evita `ENOTEMPTY` en Mac borrando `alquimia` / `.alquimia-*` bajo `npm root -g`. Flags/env: `--no-update`, `ALQUIMIA_NO_UPDATE`, skip en CI / sin TTY. Comando explícito `alquimia update`. Tests unitarios sin red.
+- **0.5.8** — `alquimia art`: fondo de terminal con brand art (iTerm2 / Kitty) + `--clear` / `--open` / `--path`.
 - **0.5.7** — Help: se quitó el bloque `Ejemplos` de la salida de ayuda. Fix: URLs de Discord scheduled-event de lunes y miércoles estaban intercambiadas.
 - **0.5.5** — Fix: redraw portable del picker (`select`) sin DECSC/DECRC; limpia por conteo visual de filas (ancho de glifos + CSI/OSC) para que ↑↓ no apile menús en VS Code / Cursor. Suite Vitest (unit + fake-TTY stacking + CLI smoke).
 - **0.5.4** — Fix: el picker interactivo (`select`) limpia filas visuales (wrap + ANSI) al navegar ↑↓, sin filas fantasma. Se quitó el placeholder `by the way tests` del catálogo de testing (queda Vitest).
