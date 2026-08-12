@@ -212,7 +212,7 @@ describe("CLI smoke — doctor", () => {
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/Alquimia doctor/);
     expect(r.stdout).toMatch(/Node/);
-    expect(r.stdout).toMatch(/0\.5\.14/);
+    expect(r.stdout).toMatch(/0\.5\.15/);
   });
 
   it("doctor --json has expected keys", () => {
