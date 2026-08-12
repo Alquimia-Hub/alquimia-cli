@@ -29,4 +29,9 @@ export const style = {
   magenta: (t) => paint("35", t),
   red: (t) => paint("31", t),
   blue: (t) => paint("34", t),
+  white: (t) => paint("37", t),
+  brightCyan: (t) => paint("96", t),
+  brightWhite: (t) => paint("97", t),
+  brightYellow: (t) => paint("93", t),
+  brightGreen: (t) => paint("92", t),
 };

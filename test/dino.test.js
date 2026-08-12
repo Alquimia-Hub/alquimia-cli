@@ -9,10 +9,18 @@ import {
   renderFrame,
   shouldOfferDino,
   step,
+  playerGlyph,
+  loadHiScore,
+  saveHiScore,
+  dinoHiScorePath,
+  FIELD_ROWS,
   PLAYER_H,
   JUMP_VELOCITY,
 } from "../src/dino/game.js";
 import { createFakeStdin, createFakeStdout } from "./helpers/fake-tty.js";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 describe("dino — parseKey", () => {
   it("maps jump / quit / restart", () => {
@@ -115,24 +123,61 @@ describe("dino — physics", () => {
 });
 
 describe("dino — render", () => {
-  it("renderField includes player and keeps width", () => {
+  it("renderField includes multi-row player and keeps width", () => {
     const s = createInitialState({ width: 36, seed: 2 });
     const field = renderField(s);
-    expect(field).toHaveLength(5);
+    expect(field).toHaveLength(FIELD_ROWS);
+    expect(FIELD_ROWS).toBeGreaterThanOrEqual(8);
     expect(field.every((line) => line.length === 36)).toBe(true);
-    expect(field.join("\n")).toMatch(/ο/);
+    const joined = field.join("\n");
+    expect(joined).toMatch(/[▄█▐▌▀]/);
+    // Continuous ground baseline (not sparse lonely dots)
+    expect(field[field.length - 1]).toMatch(/▀{8,}/);
   });
 
-  it("renderFrame has Spanish HUD", () => {
-    const s = createInitialState({ width: 36, seed: 2 });
-    const frame = renderFrame(s);
-    expect(frame).toMatch(/Alquimia Runner/);
-    expect(frame).toMatch(/Puntos:/);
-    expect(frame).toMatch(/Espacio/);
+  it("playerGlyph has run cycle and jump pose", () => {
+    const a = playerGlyph(true, 0);
+    const b = playerGlyph(true, 1);
+    const jump = playerGlyph(false, 0);
+    expect(a).toHaveLength(4);
+    expect(a.every((row) => [...row].length === 5)).toBe(true);
+    expect(a.join("\n")).not.toBe(b.join("\n"));
+    expect(jump.join("\n")).not.toBe(a.join("\n"));
+  });
 
-    const over = renderFrame({ ...s, status: "over", score: 9 });
+  it("renderFrame has Spanish HUD + hi-score + game over panel", () => {
+    const s = createInitialState({ width: 36, seed: 2 });
+    const frame = renderFrame(s, { hiScore: 12 });
+    expect(frame).toMatch(/Alquimia Runner/);
+    expect(frame).toMatch(/★/);
+    expect(frame).toMatch(/HI\s+12/);
+    expect(frame).toMatch(/Espacio/);
+    // No cluttered duplicate title lines
+    expect(frame.split("\n").filter((l) => l.includes("Alquimia Runner"))).toHaveLength(1);
+
+    const over = renderFrame({ ...s, status: "over", score: 9 }, { hiScore: 12 });
     expect(over).toMatch(/¡Chocaste!/);
+    expect(over).toMatch(/Puntos\s+9/);
+    expect(over).toMatch(/Récord\s+12/);
     expect(over).toMatch(/Enter para reiniciar/);
+    expect(over).toMatch(/╭/);
+  });
+});
+
+describe("dino — hi-score", () => {
+  it("persists under XDG share path and keeps the max", () => {
+    const dir = mkdtempSync(join(tmpdir(), "alquimia-dino-"));
+    const path = join(dir, "dino-hiscore.json");
+    expect(loadHiScore({ path })).toBe(0);
+    expect(saveHiScore(15, { path })).toBe(15);
+    expect(saveHiScore(10, { path })).toBe(15);
+    expect(saveHiScore(22, { path })).toBe(22);
+    expect(loadHiScore({ path })).toBe(22);
+    const raw = JSON.parse(readFileSync(path, "utf8"));
+    expect(raw.hiScore).toBe(22);
+    expect(dinoHiScorePath({ home: "/tmp/home" })).toBe(
+      join("/tmp/home", ".local", "share", "alquimia", "dino-hiscore.json")
+    );
   });
 });
 

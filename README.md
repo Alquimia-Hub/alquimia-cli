@@ -190,13 +190,13 @@ Completa comandos y flags principales (`art`, `tools`, `doctor`, `--opacity`, `-
 
 ### dino
 
-Alquimia Runner: un endless runner original en la TTY (arte ASCII propio — no es el dino de Chrome).
+Alquimia Runner: un endless runner original en la TTY (sprites Unicode propios — no es el dino de Chrome). HUD con score + hi-score persistido en `~/.local/share/alquimia/dino-hiscore.json`.
 
 ```bash
 alquimia dino
 ```
 
-Controles: **Espacio** / **↑** saltá, **q** / **Esc** salí. Al game over muestra el score; **Enter** reinicia.
+Controles: **Espacio** / **↑** saltá, **q** / **Esc** salí. Al game over muestra panel con score / récord; **Enter** reinicia.
 
 También corre en paralelo durante installs largos de `tools` y durante `alquimia update` cuando hay TTY interactiva (se saltea con `--no-interactive`, `CI=true` o `ALQUIMIA_NO_DINO=1`).
 
@@ -251,6 +251,7 @@ ESM (`"type": "module"`), sin dependencias de runtime (Vitest solo en dev), lice
 
 ## Changelog
 
+- **0.5.18** — Alquimia Runner UI polish: sprites Unicode multi-fila, campo más alto, colores ANSI (respeta `NO_COLOR`), HUD con hi-score (`~/.local/share/alquimia/dino-hiscore.json`), suelo continuo, panel de game over. Sin deps nuevas.
 - **0.5.17** — `alquimia dino`: Alquimia Runner TTY original (Espacio/↑, q/Esc, Enter reinicia). Durante `tools` install y `update` en TTY interactiva corre en paralelo; se saltea con `--no-interactive` / CI / `ALQUIMIA_NO_DINO`. Helpers puros + Vitest. Sin deps nuevas.
 - **0.5.15** — Help global más corto: tagline + Uso + Comandos (sin bloques Opciones / redes / secciones de tools / Auto-update). Flags y features siguen igual; tip de per-command help no se agregó (aún no hay `alquimia <cmd> --help`). Sin deps nuevas.
 - **0.5.14** — `alquimia doctor` (diagnóstico + `--json`). `art --opacity` / `--fit` con prefs en `~/.local/share/alquimia/art-prefs.json` (`--clear` mantiene prefs; re-aplicar reescribe el bloque Ghostty). Completions zsh/bash/fish vía `alquimia completion <shell>`. Filtro type-to-search en el picker de `tools`. Sin deps nuevas.
