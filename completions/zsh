@@ -14,6 +14,7 @@ _alquimia() {
     'art:Fondo de terminal con brand art'
     'doctor:Diagnóstico del entorno'
     'open:Abrí una red en el navegador'
+    'dino:Alquimia Runner (TTY)'
     'update:Actualizá la CLI'
     'completion:Imprimir script de completion'
     'help:Ayuda'
@@ -99,7 +100,7 @@ _alquimia() {
         completion)
           _arguments "1:shell:(${shells[*]})"
           ;;
-        info|help|version|update)
+        info|help|version|update|dino)
           ;;
       esac
       ;;

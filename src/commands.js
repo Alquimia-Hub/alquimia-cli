@@ -48,6 +48,11 @@ export const commands = [
       "Abrí una red puntual en el navegador (`open discord`, `open x`, etc.)",
   },
   {
+    name: "dino",
+    usage: "dino",
+    blurb: "Corré el Alquimia Runner en la terminal (Espacio/↑ saltá, q salí)",
+  },
+  {
     name: "update",
     usage: "update",
     blurb:

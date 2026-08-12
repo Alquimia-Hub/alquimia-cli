@@ -188,6 +188,18 @@ eval "$(alquimia completion zsh)"
 
 Completa comandos y flags principales (`art`, `tools`, `doctor`, `--opacity`, `--fit`, `--clear`, `--json`, `--no-update`, …).
 
+### dino
+
+Alquimia Runner: un endless runner original en la TTY (arte ASCII propio — no es el dino de Chrome).
+
+```bash
+alquimia dino
+```
+
+Controles: **Espacio** / **↑** saltá, **q** / **Esc** salí. Al game over muestra el score; **Enter** reinicia.
+
+También corre en paralelo durante installs largos de `tools` y durante `alquimia update` cuando hay TTY interactiva (se saltea con `--no-interactive`, `CI=true` o `ALQUIMIA_NO_DINO=1`).
+
 ### version
 
 ```bash
@@ -198,7 +210,7 @@ alquimia version
 
 ### update
 
-Reinstalá la CLI desde GitHub en primer plano (también corre sola en segundo plano al arrancar; ver Auto-update arriba):
+Reinstalá la CLI desde GitHub en primer plano (también corre sola en segundo plano al arrancar; ver Auto-update arriba). En TTY interactiva, mientras corre el install podés jugar al Alquimia Runner:
 
 ```bash
 alquimia update
@@ -233,12 +245,13 @@ npm run test:watch
 
 Cubre `visualLineCount` / anchos (bordes, ANSI, wide glyphs), regresión de stacking del picker (`select` con stdin/stdout fake: wrap, cancel, custom hint), helpers de agenda en `community.js` (reloj inyectado), helpers de auto-update (semver + cache, sin red) y smoke ampliado de `version` / `help` / `tools` / `events` / `info` / `join` (positivos, negativos y bordes).
 
-Links, menú de `join` y agenda de `events` viven centralizados en `src/community.js` (incl. URLs de scheduled events de Discord). El catálogo de `tools` está en `src/tools.js`. El selector con flechas (`events` y `tools`) está en `src/select.js` (reutilizable). La lista de comandos + blurbs (help, `info`, postinstall y este README) está en `src/commands.js`. El auto-update silencioso está en `src/update.js`. El banner ASCII está en `src/banner.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
+Links, menú de `join` y agenda de `events` viven centralizados en `src/community.js` (incl. URLs de scheduled events de Discord). El catálogo de `tools` está en `src/tools.js`. El selector con flechas (`events` y `tools`) está en `src/select.js` (reutilizable). La lista de comandos + blurbs (help, `info`, postinstall y este README) está en `src/commands.js`. El auto-update silencioso está en `src/update.js`. El Alquimia Runner está en `src/dino/game.js`. El banner ASCII está en `src/banner.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
 
 ESM (`"type": "module"`), sin dependencias de runtime (Vitest solo en dev), licencia MIT.
 
 ## Changelog
 
+- **0.5.17** — `alquimia dino`: Alquimia Runner TTY original (Espacio/↑, q/Esc, Enter reinicia). Durante `tools` install y `update` en TTY interactiva corre en paralelo; se saltea con `--no-interactive` / CI / `ALQUIMIA_NO_DINO`. Helpers puros + Vitest. Sin deps nuevas.
 - **0.5.15** — Help global más corto: tagline + Uso + Comandos (sin bloques Opciones / redes / secciones de tools / Auto-update). Flags y features siguen igual; tip de per-command help no se agregó (aún no hay `alquimia <cmd> --help`). Sin deps nuevas.
 - **0.5.14** — `alquimia doctor` (diagnóstico + `--json`). `art --opacity` / `--fit` con prefs en `~/.local/share/alquimia/art-prefs.json` (`--clear` mantiene prefs; re-aplicar reescribe el bloque Ghostty). Completions zsh/bash/fish vía `alquimia completion <shell>`. Filtro type-to-search en el picker de `tools`. Sin deps nuevas.
 - **0.5.13** — Ghostty `alquimia art`: `background-image-fit = cover` (llena la terminal; puede recortar bordes) + opacity default **0.28** (texto legible en dark mode). Re-aplicar `alquimia art` reescribe cover+0.28 (no deja `contain`/0.55 viejos). WezTerm: `config.background` `Cover` + brightness `0.18`. Contour/WT opacity `0.2`; Hyper scrim `0.72`; Tabby CSS opacity `0.2`. Si alguna versión de Ghostty letterboxea con `cover`, podés probar `background-image-fit = stretch` a mano. Sin deps nuevas.
