@@ -58,6 +58,13 @@ import {
   patchConfigBlock,
   clearConfigBlock,
 } from "./art/config-block.js";
+import {
+  findGhosttyPids,
+  isGhosttyProcess,
+  reloadGhosttyConfig,
+  reloadGhosttyViaAppleScript,
+  signalGhosttySigusr2,
+} from "./art/ghostty-reload.js";
 
 const ART_FILENAME = "art.png";
 
@@ -95,6 +102,11 @@ export {
   GHOSTTY_DEFAULT_OPACITY,
   patchConfigBlock,
   clearConfigBlock,
+  findGhosttyPids,
+  isGhosttyProcess,
+  reloadGhosttyConfig,
+  reloadGhosttyViaAppleScript,
+  signalGhosttySigusr2,
   setGhosttyBackground,
   clearGhosttyBackground,
   setWeztermBackground,
@@ -265,15 +277,11 @@ async function setForTerminal(terminal, artPath) {
   }
 
   if (terminal === "ghostty") {
-    // Config write + reload only — Ghostty has no live OSC background path.
+    // Config write + SIGUSR2 (Ghostty 1.2+) / macOS ⌘⇧, fallback — no live OSC.
     return reportConfigResult(
       setGhosttyBackground(artPath),
       "Ghostty",
-      artPath,
-      {
-        successExtra:
-          "Se escribió la config (no es OSC en vivo). Recargá Ghostty para ver el fondo.",
-      }
+      artPath
     );
   }
 
@@ -417,10 +425,12 @@ async function clearForTerminal(terminal, artPath) {
 
 function reportConfigResult(result, name, artPath, { successExtra } = {}) {
   if (result.ok) {
-    console.log(
-      `${style.green("✓")} Fondo escrito para ${name} (no es universal en todas las terminales).`
-    );
-    if (successExtra) console.log(style.dim(successExtra));
+    const message =
+      result.successMessage ||
+      `Fondo escrito para ${name} (no es universal en todas las terminales).`;
+    console.log(`${style.green("✓")} ${message}`);
+    const extra = result.successExtra ?? successExtra;
+    if (extra) console.log(style.dim(extra));
     if (result.configPath) console.log(style.dim(`Config: ${result.configPath}`));
     if (result.reloadHint) console.log(style.dim(result.reloadHint));
     if (result.tip) console.log(style.dim(result.tip));
@@ -439,7 +449,8 @@ function reportClearResult(result, name) {
         `${style.green("✓")} No había líneas de alquimia art en ${name}.`
       );
     } else {
-      console.log(`${style.green("✓")} Fondo sacado de ${name}.`);
+      const message = result.successMessage || `Fondo sacado de ${name}.`;
+      console.log(`${style.green("✓")} ${message}`);
       if (result.configPath) {
         console.log(style.dim(`Config: ${result.configPath}`));
       }

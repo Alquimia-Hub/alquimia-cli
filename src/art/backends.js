@@ -25,9 +25,13 @@ import {
   patchConfigBlock,
   patchConfigBlockAfter,
 } from "./config-block.js";
+import { reloadGhosttyConfig } from "./ghostty-reload.js";
 
-/** Readable default for CLI brand art (Ghostty 1.2+). */
-export const GHOSTTY_DEFAULT_OPACITY = 0.35;
+/**
+ * Readable default for CLI brand art (Ghostty 1.2+).
+ * Raised from 0.35 so white-on-black dither is visible in dark mode.
+ */
+export const GHOSTTY_DEFAULT_OPACITY = 0.55;
 
 const WEZTERM_BRIGHTNESS = 0.25;
 const CONTOUR_OPACITY = 0.25;
@@ -141,7 +145,7 @@ export function clearGhosttyArtFromConfig(content) {
 
 /**
  * Idempotent Ghostty config patch (Ghostty ≥ 1.2.0 keys).
- * Not live/OSC — user must reload Ghostty config after write.
+ * Not live/OSC — apply via config write + SIGUSR2 / reload_config.
  * @param {string} content
  * @param {string} imagePath
  * @param {{ opacity?: number }} [opts]
@@ -165,9 +169,41 @@ export function patchGhosttyConfigContent(
 export function ghosttyReloadHint(osPlatform = platform()) {
   // Ghostty has no live OSC background path — config write + reload only.
   if (osPlatform === "darwin") {
-    return "Ghostty no aplica el fondo en vivo: recargá la config (menú o ⌘⇧,) o reiniciá Ghostty.";
+    return "No pude recargar Ghostty solo: recargá la config (menú o ⌘⇧,) o reiniciá. En Mac, el fallback AppleScript puede pedir Accesibilidad.";
   }
-  return "Ghostty no aplica el fondo en vivo: recargá la config (menú o Ctrl+Shift+,) o reiniciá Ghostty.";
+  return "No pude recargar Ghostty solo: recargá la config (menú o Ctrl+Shift+,) o reiniciá Ghostty.";
+}
+
+/**
+ * After a successful Ghostty config write/clear, try SIGUSR2 (+ macOS AppleScript).
+ * @param {object} opts
+ * @returns {{ reloaded: boolean, reloadMethod: string|null, reloadHint?: string, needsReload: boolean }}
+ */
+function ghosttyPostWriteReload(opts = {}) {
+  const plat = opts.platform ?? platform();
+  const reloadFn = opts.reloadConfig ?? reloadGhosttyConfig;
+  const reload = reloadFn({
+    platform: plat,
+    spawnSync: opts.spawnSync,
+    kill: opts.kill,
+    findPids: opts.findPids,
+    signalPids: opts.signalPids,
+    appleScriptReload: opts.appleScriptReload,
+    psOutput: opts.psOutput,
+  });
+  if (reload.ok) {
+    return {
+      reloaded: true,
+      reloadMethod: reload.method,
+      needsReload: false,
+    };
+  }
+  return {
+    reloaded: false,
+    reloadMethod: null,
+    needsReload: true,
+    reloadHint: ghosttyReloadHint(plat),
+  };
 }
 
 /**
@@ -185,11 +221,17 @@ export function setGhosttyBackground(imagePath, opts = {}) {
     });
     // atomicWriteFile creates parent dirs when the file is missing.
     atomicWriteFile(configPath, next, opts);
+    const reload = ghosttyPostWriteReload(opts);
     return {
       ok: true,
       configPath,
-      needsReload: true,
-      reloadHint: ghosttyReloadHint(opts.platform ?? platform()),
+      ...reload,
+      successMessage: reload.reloaded
+        ? "Fondo aplicado (config + reload automático)"
+        : "Fondo escrito para Ghostty (no es universal en todas las terminales).",
+      successExtra: reload.reloaded
+        ? undefined
+        : "Se escribió la config (no es OSC en vivo). Recargá Ghostty para ver el fondo.",
     };
   } catch (err) {
     return {
@@ -222,6 +264,7 @@ export function clearGhosttyBackground(opts = {}) {
       configPath: candidates.find((p) => exists(p)) || null,
       changed: false,
       needsReload: false,
+      reloaded: false,
     };
   }
 
@@ -237,14 +280,24 @@ export function clearGhosttyBackground(opts = {}) {
         changed = true;
       }
     }
+    if (!changed) {
+      return {
+        ok: true,
+        configPath: last,
+        changed: false,
+        needsReload: false,
+        reloaded: false,
+      };
+    }
+    const reload = ghosttyPostWriteReload(opts);
     return {
       ok: true,
       configPath: last,
-      changed,
-      needsReload: changed,
-      reloadHint: changed
-        ? ghosttyReloadHint(opts.platform ?? platform())
-        : undefined,
+      changed: true,
+      ...reload,
+      successMessage: reload.reloaded
+        ? "Fondo sacado (config + reload automático)"
+        : "Fondo sacado de Ghostty.",
     };
   } catch (err) {
     return {

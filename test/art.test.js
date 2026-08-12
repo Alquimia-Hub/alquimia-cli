@@ -19,6 +19,10 @@ import {
   setGhosttyBackground,
   clearGhosttyBackground,
   ghosttyReloadHint,
+  findGhosttyPids,
+  isGhosttyProcess,
+  reloadGhosttyConfig,
+  signalGhosttySigusr2,
   patchWeztermConfigContent,
   clearWeztermArtFromConfig,
   setWeztermBackground,
@@ -167,12 +171,12 @@ describe("Ghostty config patcher", () => {
   });
 
   it("patches with # BEGIN/END alquimia-art and Ghostty 1.2 keys", () => {
-    expect(GHOSTTY_DEFAULT_OPACITY).toBe(0.35);
+    expect(GHOSTTY_DEFAULT_OPACITY).toBe(0.55);
     const next = patchGhosttyConfigContent("theme = dark\n", art);
     expect(next).toContain(GHOSTTY_BLOCK_BEGIN);
     expect(next).toContain(GHOSTTY_BLOCK_END);
     expect(next).toContain(`background-image = ${art}`);
-    expect(next).toContain("background-image-opacity = 0.35");
+    expect(next).toContain("background-image-opacity = 0.55");
     expect(next).toContain("background-image-position = center");
     expect(next).toContain("background-image-fit = contain");
     expect(next).toContain("background-image-repeat = false");
@@ -213,19 +217,59 @@ describe("Ghostty config patcher", () => {
         platform: "linux",
         xdgConfigHome: xdg,
         env: {},
+        // No real Ghostty in CI — force reload failure path.
+        reloadConfig: () => ({ ok: false, method: null, pids: [] }),
       };
       const set = setGhosttyBackground(art, opts);
       expect(set.ok).toBe(true);
       expect(existsSync(set.configPath)).toBe(true);
       expect(set.needsReload).toBe(true);
+      expect(set.reloaded).toBe(false);
+      expect(set.reloadHint).toMatch(/recargá la config/i);
       const text = readFileSync(set.configPath, "utf8");
       expect(text).toContain("# BEGIN alquimia-art");
       expect(text).toContain("# END alquimia-art");
       const cleared = clearGhosttyBackground(opts);
       expect(cleared.ok).toBe(true);
       expect(cleared.changed).toBe(true);
+      expect(cleared.needsReload).toBe(true);
       expect(readFileSync(set.configPath, "utf8")).not.toContain(
         "background-image"
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("set/clear report auto-reload success when SIGUSR2 path works", () => {
+    const root = mkdtempSync(join(tmpdir(), "alquimia-art-"));
+    try {
+      const xdg = join(root, "xdg");
+      const opts = {
+        home: root,
+        platform: "linux",
+        xdgConfigHome: xdg,
+        env: {},
+        reloadConfig: () => ({
+          ok: true,
+          method: "sigusr2",
+          pids: [4242],
+        }),
+      };
+      const set = setGhosttyBackground(art, opts);
+      expect(set.ok).toBe(true);
+      expect(set.reloaded).toBe(true);
+      expect(set.needsReload).toBe(false);
+      expect(set.reloadHint).toBeUndefined();
+      expect(set.successMessage).toBe(
+        "Fondo aplicado (config + reload automático)"
+      );
+      const cleared = clearGhosttyBackground(opts);
+      expect(cleared.ok).toBe(true);
+      expect(cleared.changed).toBe(true);
+      expect(cleared.reloaded).toBe(true);
+      expect(cleared.successMessage).toBe(
+        "Fondo sacado (config + reload automático)"
       );
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -270,10 +314,112 @@ describe("Ghostty config patcher", () => {
     }
   });
 
-  it("reload hint says config+reload, not live OSC", () => {
-    expect(ghosttyReloadHint("darwin")).toMatch(/no aplica el fondo en vivo/i);
+  it("reload hint says manual reload when auto-reload fails", () => {
+    expect(ghosttyReloadHint("darwin")).toMatch(/No pude recargar Ghostty/i);
     expect(ghosttyReloadHint("darwin")).toMatch(/⌘⇧,|cmd\+shift\+,/i);
+    expect(ghosttyReloadHint("darwin")).toMatch(/Accesibilidad/i);
     expect(ghosttyReloadHint("linux")).toMatch(/Ctrl\+Shift\+,/);
+  });
+});
+
+describe("Ghostty auto-reload (SIGUSR2 / AppleScript)", () => {
+  it("isGhosttyProcess matches exact binary / macOS app path only", () => {
+    expect(isGhosttyProcess("ghostty", "/usr/bin/ghostty")).toBe(true);
+    expect(
+      isGhosttyProcess(
+        "ghostty",
+        "/Applications/Ghostty.app/Contents/MacOS/ghostty"
+      )
+    ).toBe(true);
+    expect(
+      isGhosttyProcess(
+        "Ghostty",
+        "/Applications/Ghostty.app/Contents/MacOS/ghostty --foo"
+      )
+    ).toBe(true);
+    expect(isGhosttyProcess("ghostty-helper", "/usr/bin/ghostty-helper")).toBe(
+      false
+    );
+    expect(isGhosttyProcess("chrome", "chrome --user-data=ghostty")).toBe(
+      false
+    );
+    expect(
+      isGhosttyProcess(
+        "bash",
+        "bash -c echo Ghostty.app/Contents/MacOS/ghostty"
+      )
+    ).toBe(false);
+  });
+
+  it("findGhosttyPids parses ps listing without touching real processes", () => {
+    const psOutput = [
+      "  100 bash             /bin/bash",
+      "  200 ghostty          /usr/bin/ghostty",
+      "  201 ghostty-helper   /usr/bin/ghostty-helper",
+      "  300 Ghostty          /Applications/Ghostty.app/Contents/MacOS/ghostty",
+      "  400 node             node /tmp/ghostty-cli.js",
+      "",
+    ].join("\n");
+    expect(
+      findGhosttyPids({ platform: "linux", psOutput })
+    ).toEqual([200, 300]);
+  });
+
+  it("signalGhosttySigusr2 uses process.kill with SIGUSR2 (mocked)", () => {
+    const calls = [];
+    const kill = (pid, signal) => {
+      calls.push({ pid, signal });
+      if (pid === 2) throw new Error("ESRCH");
+    };
+    const result = signalGhosttySigusr2([1, 2, 3], { kill });
+    expect(result.ok).toBe(true);
+    expect(result.signaled).toEqual([1, 3]);
+    expect(result.failed).toEqual([{ pid: 2, error: "ESRCH" }]);
+    expect(calls).toEqual([
+      { pid: 1, signal: "SIGUSR2" },
+      { pid: 2, signal: "SIGUSR2" },
+      { pid: 3, signal: "SIGUSR2" },
+    ]);
+  });
+
+  it("reloadGhosttyConfig prefers SIGUSR2; falls back to AppleScript on darwin", () => {
+    const sig = reloadGhosttyConfig({
+      platform: "linux",
+      findPids: () => [99],
+      signalPids: (pids) => ({ ok: true, signaled: pids, failed: [] }),
+      appleScriptReload: () => ({ ok: true }),
+    });
+    expect(sig).toEqual({ ok: true, method: "sigusr2", pids: [99] });
+
+    const as = reloadGhosttyConfig({
+      platform: "darwin",
+      findPids: () => [],
+      signalPids: () => ({ ok: false, signaled: [], failed: [] }),
+      appleScriptReload: () => ({ ok: true }),
+    });
+    expect(as).toEqual({ ok: true, method: "applescript", pids: [] });
+
+    const failLinux = reloadGhosttyConfig({
+      platform: "linux",
+      findPids: () => [],
+      signalPids: () => ({ ok: false, signaled: [], failed: [] }),
+      appleScriptReload: () => ({ ok: true }),
+    });
+    expect(failLinux.ok).toBe(false);
+    expect(failLinux.method).toBeNull();
+
+    const failAfterSignal = reloadGhosttyConfig({
+      platform: "darwin",
+      findPids: () => [7],
+      signalPids: () => ({
+        ok: false,
+        signaled: [],
+        failed: [{ pid: 7, error: "EPERM" }],
+      }),
+      appleScriptReload: () => ({ ok: false, error: "no a11y" }),
+    });
+    expect(failAfterSignal.ok).toBe(false);
+    expect(failAfterSignal.pids).toEqual([7]);
   });
 });
 
