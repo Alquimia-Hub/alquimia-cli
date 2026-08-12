@@ -180,7 +180,11 @@ export function createFakeStdout(columns, term) {
 export const KEY = {
   up: "\x1b[A",
   down: "\x1b[B",
+  /** Application-cursor-mode arrows (ESC O A/B). */
+  upAlt: "\x1bOA",
+  downAlt: "\x1bOB",
   enter: "\r",
   q: "q",
   esc: "\x1b",
+  ctrlC: "\u0003",
 };

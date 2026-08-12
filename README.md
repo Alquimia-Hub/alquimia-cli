@@ -197,7 +197,7 @@ npm test          # vitest run (unit + fake-TTY picker + CLI smoke)
 npm run test:watch
 ```
 
-Cubre `visualLineCount` / anchos, regresión de stacking del picker (`select` con stdin/stdout fake), helpers de auto-update (semver + cache, sin red) y smoke de `tools --list` / `--json` / `version`.
+Cubre `visualLineCount` / anchos (bordes, ANSI, wide glyphs), regresión de stacking del picker (`select` con stdin/stdout fake: wrap, cancel, custom hint), helpers de agenda en `community.js` (reloj inyectado), helpers de auto-update (semver + cache, sin red) y smoke ampliado de `version` / `help` / `tools` / `events` / `info` / `join` (positivos, negativos y bordes).
 
 Links, menú de `join` y agenda de `events` viven centralizados en `src/community.js` (incl. URLs de scheduled events de Discord). El catálogo de `tools` está en `src/tools.js`. El selector con flechas (`events` y `tools`) está en `src/select.js` (reutilizable). La lista de comandos + blurbs (help, `info`, postinstall y este README) está en `src/commands.js`. El auto-update silencioso está en `src/update.js`. El banner ASCII está en `src/banner.js`. El entrypoint es `bin/alquimia.js` (con shebang `#!/usr/bin/env node` para bins globales en Unix).
 
@@ -205,7 +205,8 @@ ESM (`"type": "module"`), sin dependencias de runtime (Vitest solo en dev), lice
 
 ## Changelog
 
-- **0.5.10** — `alquimia art`: multi-terminal (iTerm2, Kitty, Ghostty, WezTerm, Contour, Tilix, Terminology, Hyper, Tabby, Windows Terminal). Ghostty: bloque `# BEGIN/END alquimia-art` con keys 1.2+ (`background-image`, opacity 0.35, position/fit/repeat); paths App Support + XDG + `GHOSTTY_CONFIG_PATH`; reload requerido (no OSC). Art en `~/.local/share/alquimia/art.png`. Honest UX donde no hay API. Tests con temp HOME.
+- **0.5.11** — `alquimia art`: multi-terminal (iTerm2, Kitty, Ghostty, WezTerm, Contour, Tilix, Terminology, Hyper, Tabby, Windows Terminal). Ghostty: bloque `# BEGIN/END alquimia-art` con keys 1.2+ (`background-image`, opacity 0.35, position/fit/repeat); paths App Support + XDG + `GHOSTTY_CONFIG_PATH`; reload requerido (no OSC). Art en `~/.local/share/alquimia/art.png`. Honest UX donde no hay API. Tests con temp HOME.
+- **0.5.10** — Tests: cobertura Vitest ampliada (positivos / negativos / bordes) para `select`, smoke CLI y helpers de `community.js`.
 - **0.5.9** — Auto-update silencioso al arrancar (check cacheado ~1h → cleanup global + `npm install -g` detachado). Evita `ENOTEMPTY` en Mac borrando `alquimia` / `.alquimia-*` bajo `npm root -g`. Flags/env: `--no-update`, `ALQUIMIA_NO_UPDATE`, skip en CI / sin TTY. Comando explícito `alquimia update`. Tests unitarios sin red.
 - **0.5.8** — `alquimia art`: fondo de terminal con brand art (iTerm2 / Kitty) + `--clear` / `--open` / `--path`.
 - **0.5.7** — Help: se quitó el bloque `Ejemplos` de la salida de ayuda. Fix: URLs de Discord scheduled-event de lunes y miércoles estaban intercambiadas.
