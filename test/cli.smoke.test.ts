@@ -2,7 +2,8 @@ import { describe, it, expect } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { readFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const bin = join(root, "bin/alquimia.js");
@@ -34,11 +35,39 @@ describe("CLI smoke — Node bootstrap (npx path)", () => {
   });
 
   it.skipIf(!hasNode)("explains itself when no Bun can be found", () => {
+    // The bootstrap resolves the `bun` package relative to its own location,
+    // and this repo has it installed — so copy it somewhere with no
+    // node_modules to reproduce a machine that genuinely has no Bun.
+    const dir = mkdtempSync(join(tmpdir(), "alquimia-bootstrap-"));
+    const isolated = join(dir, "alquimia.js");
+    copyFileSync(join(root, "bin/alquimia.js"), isolated);
+
+    try {
+      const r = spawnSync(nodeBin!, [isolated, "version"], {
+        cwd: dir,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: "/nonexistent",
+          ALQUIMIA_BUN: "/nonexistent/bun",
+          ALQUIMIA_NO_UPDATE: "1",
+        },
+      });
+
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/Bun/);
+      expect(r.stderr).toMatch(/bun\.sh\/install|bunx/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(!hasNode)("uses the bun optional dependency when PATH has none", () => {
+    // Same as above but from the repo, where the optional dependency exists:
+    // the bootstrap must fall back to it instead of giving up.
     const r = spawnSync(nodeBin!, [join(root, "bin/alquimia.js"), "version"], {
       cwd: root,
       encoding: "utf8",
-      // Point the override at a non-existent binary and strip PATH so neither
-      // `bun` nor the optional dependency can be resolved.
       env: {
         ...process.env,
         PATH: "/nonexistent",
@@ -46,9 +75,9 @@ describe("CLI smoke — Node bootstrap (npx path)", () => {
         ALQUIMIA_NO_UPDATE: "1",
       },
     });
-    expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/Bun/);
-    expect(r.stderr).toMatch(/bun\.sh\/install|bunx/);
+
+    expect(r.status).toBe(0);
+    expect(r.stdout.trim()).toBe(pkg.version);
   });
 
   it("is declared as the package bin", () => {
