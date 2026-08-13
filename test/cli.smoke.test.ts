@@ -189,7 +189,7 @@ describe("CLI smoke — tools catalog", () => {
 });
 
 describe("CLI smoke — events --json", () => {
-  it("monday/wednesday urls present and swapped correctly on master", () => {
+  it("monday/wednesday urls present and not swapped", () => {
     const r = runCli(["events", "--json"]);
     expect(r.status).toBe(0);
     const data = JSON.parse(r.stdout) as any;

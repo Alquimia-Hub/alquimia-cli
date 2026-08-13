@@ -94,7 +94,7 @@ export const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 export const UPDATE_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
 
 export const REMOTE_PACKAGE_URL =
-  "https://raw.githubusercontent.com/Alquimia-Hub/alquimia-cli/master/package.json";
+  "https://raw.githubusercontent.com/Alquimia-Hub/alquimia-cli/main/package.json";
 
 export const INSTALL_SPEC = "alquimia-cli";
 
