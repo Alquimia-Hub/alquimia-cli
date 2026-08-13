@@ -13,6 +13,7 @@ import { EventEmitter } from "node:events";
 import {
   CHECK_INTERVAL_MS,
   INSTALL_SPEC,
+  REMOTE_PACKAGE_URL,
   UPDATE_COOLDOWN_MS,
   compareSemver,
   isNewer,
@@ -33,6 +34,17 @@ import {
 function fakeSpawnSyncRoot(root: string) {
   return () => ({ status: 0, stdout: `${root}\n`, stderr: "" });
 }
+
+describe("update target", () => {
+  it("checks the same place it installs from", () => {
+    // The bug this guards: checking GitHub while installing from npm. A tagged
+    // but unpublished version made the check report an update forever while
+    // the install kept returning the same version.
+    expect(REMOTE_PACKAGE_URL).toContain("registry.npmjs.org");
+    expect(REMOTE_PACKAGE_URL).toContain(INSTALL_SPEC);
+    expect(REMOTE_PACKAGE_URL).not.toContain("github");
+  });
+});
 
 describe("compareSemver / isNewer", () => {
   it("compares major.minor.patch numerically", () => {

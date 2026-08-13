@@ -93,10 +93,23 @@ export const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 /** Don't spawn another background install if one was started recently. */
 export const UPDATE_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
 
-export const REMOTE_PACKAGE_URL =
-  "https://raw.githubusercontent.com/Alquimia-Hub/alquimia-cli/main/package.json";
-
+/** npm package name; also what `npm install -g` receives. */
 export const INSTALL_SPEC = "alquimia-cli";
+
+/**
+ * Version check target.
+ *
+ * The registry — not the repo — because `INSTALL_SPEC` installs from npm.
+ * Checking GitHub while installing from npm means a version that is tagged
+ * but not yet published sends users into a loop: the check reports a newer
+ * version, the install brings back the same one, repeat.
+ *
+ * Returns `{ version, ... }` for the latest published release, and 404s while
+ * the package is unpublished — which `fetchRemoteVersion` turns into `null`,
+ * so the auto-update simply stays quiet.
+ */
+export const REMOTE_PACKAGE_URL = `https://registry.npmjs.org/${INSTALL_SPEC}/latest`;
+
 
 /** Common Homebrew / Intel Mac npm global roots when `npm root -g` fails. */
 export const NPM_GLOBAL_ROOT_FALLBACKS = [
