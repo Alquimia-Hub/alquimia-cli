@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    // Bun runs TypeScript directly — there is no build step, so the compiler
+    // is only ever used for `bun run typecheck`.
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext"],
+    "types": ["bun"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "verbatimModuleSyntax": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts", "bin/**/*.ts", "test/**/*.ts"]
+}

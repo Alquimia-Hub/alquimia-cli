@@ -1,0 +1,62 @@
+[
+  {
+    "name": "info",
+    "usage": "info",
+    "blurb": "Qué es Alquimia, la descripción de la comunidad y links a web, GitHub, X, Discord y WhatsApp"
+  },
+  {
+    "name": "join",
+    "usage": "join [red]",
+    "blurb": "Menú para sumarte; abrí Discord (recomendado), WhatsApp, X, GitHub o la web"
+  },
+  {
+    "name": "events",
+    "usage": "events",
+    "blurb": "Calls de lun/mié 17:00 ARG; en TTY elegí con ↑↓ y Enter abre el evento en Discord"
+  },
+  {
+    "name": "tools",
+    "usage": "tools [sección]",
+    "blurb": "Catálogo de tools; en TTY: sección → tool → acción (abrir docs o instalar). Escribí para filtrar; Esc limpia/vuelve"
+  },
+  {
+    "name": "art",
+    "usage": "art [--clear] [--opacity] [--fit] [--open] [--path]",
+    "blurb": "Fondo de terminal con brand art; `--opacity`/`--fit` se guardan, `--clear` lo saca (mantiene prefs)"
+  },
+  {
+    "name": "doctor",
+    "usage": "doctor [--json]",
+    "blurb": "Diagnóstico: Bun, binario, terminal/art, prefs, Ghostty, auto-update"
+  },
+  {
+    "name": "open",
+    "usage": "open <red>",
+    "blurb": "Abrí una red puntual en el navegador (`open discord`, `open x`, etc.)"
+  },
+  {
+    "name": "dino",
+    "usage": "dino",
+    "blurb": "Corré el Alquimia Runner en la terminal (Espacio/↑ saltá, q salí)"
+  },
+  {
+    "name": "update",
+    "usage": "update",
+    "blurb": "Actualizá la CLI ahora (también se auto-actualiza en segundo plano al arrancar)"
+  },
+  {
+    "name": "completion",
+    "usage": "completion <zsh|bash|fish>",
+    "blurb": "Imprimí el script de completion del shell (para eval o redirigir a un archivo)"
+  },
+  {
+    "name": "help",
+    "usage": "help",
+    "blurb": "Mostrá esta ayuda"
+  },
+  {
+    "name": "version",
+    "usage": "version",
+    "blurb": "Versión instalada de la CLI"
+  }
+]

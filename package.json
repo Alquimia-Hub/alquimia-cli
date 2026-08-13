@@ -1,7 +1,7 @@
 {
-  "name": "alquimia",
-  "version": "0.5.18",
-  "description": "CLI de la comunidad Alquimia — IA, automatización y productividad",
+  "name": "alquimia-cli",
+  "version": "0.6.0",
+  "description": "CLI de la comunidad Alquimia — IA, automatización y productividad (TUI con OpenTUI)",
   "bin": {
     "alquimia": "bin/alquimia.js"
   },
@@ -11,18 +11,25 @@
     "src",
     "scripts",
     "assets",
-    "completions"
+    "completions",
+    "tsconfig.json"
   ],
   "scripts": {
-    "start": "node bin/alquimia.js",
-    "info": "node bin/alquimia.js info",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "postinstall": "node scripts/postinstall.js"
+    "start": "bun bin/alquimia.ts",
+    "info": "bun bin/alquimia.ts info",
+    "dino": "bun bin/alquimia.ts dino",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "node scripts/postinstall.js",
+    "prepublishOnly": "bun run typecheck && bun test"
   },
   "keywords": [
     "alquimia",
     "cli",
+    "tui",
+    "opentui",
+    "bun",
     "comunidad",
     "ia",
     "automatizacion"
@@ -37,10 +44,21 @@
   "bugs": {
     "url": "https://github.com/Alquimia-Hub/alquimia-cli/issues"
   },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.5.1"
+  },
+  "optionalDependencies": {
+    "bun": "^1.3.0"
+  },
   "engines": {
     "node": ">=18"
   },
-  "devDependencies": {
-    "vitest": "^3.2.7"
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
