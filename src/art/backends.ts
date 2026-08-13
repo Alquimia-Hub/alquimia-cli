@@ -119,7 +119,7 @@ function hasGhosttyArtMarker(text: string) {
 export function ghosttyConfigCandidates({
   home = homedir(),
   platform: osPlatform = platform(),
-  xdgConfigHome = process.env.XDG_CONFIG_HOME,
+  xdgConfigHome,
   env = process.env,
 }: BackendOpts = {}) {
   const paths: string[] = [];
@@ -127,10 +127,11 @@ export function ghosttyConfigCandidates({
   const explicit = env.GHOSTTY_CONFIG_PATH && String(env.GHOSTTY_CONFIG_PATH).trim();
   if (explicit) paths.push(explicit);
 
+  // Fall back to the *injected* env, not process.env: callers pass `env` to
+  // get a hermetic result, and CI runners do set XDG_CONFIG_HOME.
+  const xdg = xdgConfigHome ?? env.XDG_CONFIG_HOME;
   const xdgRoot =
-    xdgConfigHome && String(xdgConfigHome).trim()
-      ? String(xdgConfigHome)
-      : join(home, ".config");
+    xdg && String(xdg).trim() ? String(xdg) : join(home, ".config");
 
   if (osPlatform === "darwin") {
     paths.push(
@@ -456,12 +457,14 @@ export function clearGhosttyBackground(opts: BackendOpts = {}): ArtBackendResult
  */
 export function weztermConfigCandidates({
   home = homedir(),
-  xdgConfigHome = process.env.XDG_CONFIG_HOME,
+  xdgConfigHome,
+  env = process.env,
 }: BackendOpts = {}) {
+  // Fall back to the *injected* env, not process.env: callers pass `env` to
+  // get a hermetic result, and CI runners do set XDG_CONFIG_HOME.
+  const xdg = xdgConfigHome ?? env.XDG_CONFIG_HOME;
   const xdgRoot =
-    xdgConfigHome && String(xdgConfigHome).trim()
-      ? String(xdgConfigHome)
-      : join(home, ".config");
+    xdg && String(xdg).trim() ? String(xdg) : join(home, ".config");
   return [
     join(home, ".wezterm.lua"),
     join(xdgRoot, "wezterm", "wezterm.lua"),
@@ -646,12 +649,14 @@ function luaString(s: string) {
  */
 export function contourConfigCandidates({
   home = homedir(),
-  xdgConfigHome = process.env.XDG_CONFIG_HOME,
+  xdgConfigHome,
+  env = process.env,
 }: BackendOpts = {}) {
+  // Fall back to the *injected* env, not process.env: callers pass `env` to
+  // get a hermetic result, and CI runners do set XDG_CONFIG_HOME.
+  const xdg = xdgConfigHome ?? env.XDG_CONFIG_HOME;
   const xdgRoot =
-    xdgConfigHome && String(xdgConfigHome).trim()
-      ? String(xdgConfigHome)
-      : join(home, ".config");
+    xdg && String(xdg).trim() ? String(xdg) : join(home, ".config");
   return [
     join(xdgRoot, "contour", "contour.yml"),
     join(xdgRoot, "contour", "contour.yaml"),
@@ -804,12 +809,14 @@ function escapeYamlSingle(s: string) {
 export function hyperConfigCandidates({
   home = homedir(),
   platform: osPlatform = platform(),
-  xdgConfigHome = process.env.XDG_CONFIG_HOME,
+  xdgConfigHome,
+  env = process.env,
 }: BackendOpts = {}) {
+  // Fall back to the *injected* env, not process.env: callers pass `env` to
+  // get a hermetic result, and CI runners do set XDG_CONFIG_HOME.
+  const xdg = xdgConfigHome ?? env.XDG_CONFIG_HOME;
   const xdgRoot =
-    xdgConfigHome && String(xdgConfigHome).trim()
-      ? String(xdgConfigHome)
-      : join(home, ".config");
+    xdg && String(xdg).trim() ? String(xdg) : join(home, ".config");
   const paths = [join(home, ".hyper.js")];
   if (osPlatform === "darwin") {
     paths.unshift(
@@ -979,16 +986,17 @@ function pathToFileUrl(absPath: string) {
 export function tabbyConfigCandidates({
   home = homedir(),
   platform: osPlatform = platform(),
-  xdgConfigHome = process.env.XDG_CONFIG_HOME,
+  xdgConfigHome,
   env = process.env,
 }: BackendOpts = {}) {
   if (env.TABBY_CONFIG_DIRECTORY) {
     return [join(String(env.TABBY_CONFIG_DIRECTORY), "config.yaml")];
   }
+  // Fall back to the *injected* env, not process.env: callers pass `env` to
+  // get a hermetic result, and CI runners do set XDG_CONFIG_HOME.
+  const xdg = xdgConfigHome ?? env.XDG_CONFIG_HOME;
   const xdgRoot =
-    xdgConfigHome && String(xdgConfigHome).trim()
-      ? String(xdgConfigHome)
-      : join(home, ".config");
+    xdg && String(xdg).trim() ? String(xdg) : join(home, ".config");
   if (osPlatform === "darwin") {
     return [
       join(home, "Library", "Application Support", "tabby", "config.yaml"),
