@@ -38,7 +38,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Alquimia-Hub/alquimia-cli.git"
+    "url": "git+https://github.com/Alquimia-Hub/alquimia-cli.git"
   },
   "homepage": "https://alquimia.community/",
   "bugs": {
@@ -58,7 +58,6 @@
     "node": ">=18"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   }
 }
