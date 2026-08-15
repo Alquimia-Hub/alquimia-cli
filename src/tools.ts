@@ -93,8 +93,8 @@ export const toolSections: ToolSection[] = [
         install: {
           global: null,
           project:
-            "git clone https://github.com/morroshub/ai-job-search.git ai-job-search && bun ai-job-search/tools/bootstrap.ts",
-          note: "Requiere Git + Bun. Después: cd ai-job-search && hermes; dentro de Hermes ejecutá /job-search setup. Instala una base genérica: no incluye perfiles, CVs ni estado personal.",
+            "git clone https://github.com/morroshub/ai-job-search.git ai-job-search && git -C ai-job-search remote remove origin && bun ai-job-search/tools/bootstrap.ts",
+          note: "Requiere Git + Bun. El instalador quita origin antes del onboarding: /setup vuelve personales varios templates trackeados. Después: cd ai-job-search && hermes; dentro de Hermes ejecutá /job-search setup. Instala una base genérica: no incluye perfiles, CVs ni estado personal. Los archivos que el agent lea pueden enviarse al proveedor del modelo configurado.",
         },
       },
     ],

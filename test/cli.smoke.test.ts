@@ -219,12 +219,14 @@ describe("CLI smoke — tools catalog", () => {
       install: {
         global: null,
         project:
-          "git clone https://github.com/morroshub/ai-job-search.git ai-job-search && bun ai-job-search/tools/bootstrap.ts",
+          "git clone https://github.com/morroshub/ai-job-search.git ai-job-search && git -C ai-job-search remote remove origin && bun ai-job-search/tools/bootstrap.ts",
       },
     });
     expect(jobSearch.install.note).toContain("Hermes");
     expect(jobSearch.install.note).toContain("/job-search setup");
     expect(jobSearch.install.note).toContain("perfiles, CVs ni estado");
+    expect(jobSearch.install.note).toContain("templates trackeados");
+    expect(jobSearch.install.note).toContain("proveedor del modelo");
   });
 
   it("tools <unknown-section> negative path (exit/message)", () => {
