@@ -179,6 +179,30 @@ describe("CLI smoke — tools catalog", () => {
     expect(toolSections.some((s) => s.id === "gratis")).toBe(false);
   });
 
+  it("publishes Hermes with official cross-platform setup guidance", () => {
+    const r = runCli(["tools", "--json"]);
+    expect(r.status).toBe(0);
+
+    const data = JSON.parse(r.stdout) as any;
+    const agents = data.sections.find((section: any) => section.id === "agents");
+    const hermes = agents?.tools.find((tool: any) => tool.id === "hermes-agent");
+
+    expect(hermes).toMatchObject({
+      name: "Hermes Agent",
+      url: "https://hermes-agent.nousresearch.com/docs/",
+      install: {
+        global:
+          "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
+        project: null,
+      },
+    });
+    expect(hermes.install.note).toContain("Windows (PowerShell)");
+    expect(hermes.install.note).toContain("Computer Use es opcional");
+    expect(hermes.install.note).toContain("hermes computer-use install");
+    expect(hermes.install.note).toContain("hermes tools");
+    expect(hermes.install.note).toContain("dependen del sistema");
+  });
+
   it("tools <unknown-section> negative path (exit/message)", () => {
     const r = runCli(["tools", "no-existe-xyz", "--list"]);
     expect(r.status).not.toBe(0);

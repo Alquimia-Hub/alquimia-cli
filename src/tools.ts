@@ -71,6 +71,19 @@ export const toolSections: ToolSection[] = [
           note: "También: brew install anomalyco/tap/opencode (macOS/Linux).",
         },
       },
+      {
+        id: "hermes-agent",
+        name: "Hermes Agent",
+        blurb:
+          "Agent open source con CLI, skills, memoria, Telegram y Computer Use",
+        url: "https://hermes-agent.nousresearch.com/docs/",
+        install: {
+          global:
+            "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
+          project: null,
+          note: "Linux/macOS/WSL: installer oficial. Windows (PowerShell): iex (irm https://hermes-agent.nousresearch.com/install.ps1). Computer Use es opcional: hermes computer-use install; después habilitalo con hermes tools. Los permisos y requisitos dependen del sistema.",
+        },
+      },
     ],
   },
   {
