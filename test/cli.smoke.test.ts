@@ -179,6 +179,56 @@ describe("CLI smoke — tools catalog", () => {
     expect(toolSections.some((s) => s.id === "gratis")).toBe(false);
   });
 
+  it("publishes Hermes with official cross-platform setup guidance", () => {
+    const r = runCli(["tools", "--json"]);
+    expect(r.status).toBe(0);
+
+    const data = JSON.parse(r.stdout) as any;
+    const agents = data.sections.find((section: any) => section.id === "agents");
+    const hermes = agents?.tools.find((tool: any) => tool.id === "hermes-agent");
+
+    expect(hermes).toMatchObject({
+      name: "Hermes Agent",
+      url: "https://hermes-agent.nousresearch.com/docs/",
+      install: {
+        global:
+          "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
+        project: null,
+      },
+    });
+    expect(hermes.install.note).toContain("Windows (PowerShell)");
+    expect(hermes.install.note).toContain("Computer Use es opcional");
+    expect(hermes.install.note).toContain("hermes computer-use install");
+    expect(hermes.install.note).toContain("hermes tools");
+    expect(hermes.install.note).toContain("dependen del sistema");
+  });
+
+  it("publishes AI Job Search as an Alquimia project tool powered by Hermes", () => {
+    const r = runCli(["tools", "--json"]);
+    expect(r.status).toBe(0);
+
+    const data = JSON.parse(r.stdout) as any;
+    const agents = data.sections.find((section: any) => section.id === "agents");
+    const jobSearch = agents?.tools.find(
+      (tool: any) => tool.id === "ai-job-search"
+    );
+
+    expect(jobSearch).toMatchObject({
+      name: "AI Job Search",
+      url: "https://github.com/morroshub/ai-job-search",
+      install: {
+        global: null,
+        project:
+          "git clone https://github.com/morroshub/ai-job-search.git ai-job-search && git -C ai-job-search remote remove origin && bun ai-job-search/tools/bootstrap.ts",
+      },
+    });
+    expect(jobSearch.install.note).toContain("Hermes");
+    expect(jobSearch.install.note).toContain("/job-search setup");
+    expect(jobSearch.install.note).toContain("perfiles, CVs ni estado");
+    expect(jobSearch.install.note).toContain("templates trackeados");
+    expect(jobSearch.install.note).toContain("proveedor del modelo");
+  });
+
   it("tools <unknown-section> negative path (exit/message)", () => {
     const r = runCli(["tools", "no-existe-xyz", "--list"]);
     expect(r.status).not.toBe(0);
