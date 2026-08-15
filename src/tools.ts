@@ -84,6 +84,19 @@ export const toolSections: ToolSection[] = [
           note: "Linux/macOS/WSL: installer oficial. Windows (PowerShell): iex (irm https://hermes-agent.nousresearch.com/install.ps1). Computer Use es opcional: hermes computer-use install; después habilitalo con hermes tools. Los permisos y requisitos dependen del sistema.",
         },
       },
+      {
+        id: "ai-job-search",
+        name: "AI Job Search",
+        blurb:
+          "Base open source para investigar, rankear y preparar postulaciones con un agent",
+        url: "https://github.com/morroshub/ai-job-search",
+        install: {
+          global: null,
+          project:
+            "git clone https://github.com/morroshub/ai-job-search.git ai-job-search && bun ai-job-search/tools/bootstrap.ts",
+          note: "Requiere Git + Bun. Después: cd ai-job-search && hermes; dentro de Hermes ejecutá /job-search setup. Instala una base genérica: no incluye perfiles, CVs ni estado personal.",
+        },
+      },
     ],
   },
   {
